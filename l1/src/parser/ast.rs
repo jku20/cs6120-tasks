@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Program {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub functions: Vec<Function>,
@@ -8,21 +8,21 @@ pub struct Program {
     pub span: Option<Span>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Type {
     Int,
     Bool,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Arg {
     pub name: String,
     #[serde(rename = "type")]
     pub ty: Type,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Function {
     pub name: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -35,21 +35,21 @@ pub struct Function {
     pub span: Option<Span>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Label {
     pub name: String,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub span: Option<Span>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum Literal {
     Int(u64),
     Bool(bool),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EffectOps {
     Jmp,
@@ -60,7 +60,7 @@ pub enum EffectOps {
     Nop,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ValueOps {
     Add,
@@ -79,13 +79,13 @@ pub enum ValueOps {
     Id,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ConstOps {
     Const,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum Instruction {
     Constant {
@@ -122,15 +122,18 @@ pub enum Instruction {
         #[serde(flatten, skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+    Label {
+        label: String,
+    },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Pos {
     pub row: usize,
     pub col: usize,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Span {
     pub pos: Pos,
     #[serde(skip_serializing_if = "Option::is_none")]

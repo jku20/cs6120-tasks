@@ -1,10 +1,26 @@
-use brilro::parser::ast::Program;
+use brilro::{cfg::analysis::Cfg, parser::ast::Program};
 use std::{
     io::{self, Read, Write},
     process::{Command, ExitCode, Stdio},
 };
 
+use argh::FromArgs;
+
+#[derive(FromArgs)]
+/// A funny little tool to rotate bril programs. Here rotate mean to take the last line of a
+/// function and put it at the beginning.
+///
+/// There is additional functionality to print out CFGs of bril functions in the graphviz DOT
+/// language.
+struct Request {
+    /// print the given function's CFG and do not rotate any programs.
+    #[argh(option)]
+    cfg_of: Option<String>,
+}
+
 fn main() -> ExitCode {
+    let req: Request = argh::from_env();
+
     let mut stdin = io::stdin().lock();
     let mut input = String::new();
     let res = stdin.read_to_string(&mut input);
@@ -12,7 +28,7 @@ fn main() -> ExitCode {
         eprintln!("error: {}", e);
         return ExitCode::FAILURE;
     }
-    let mut prog: Program = match serde_json::from_str(&input) {
+    let prog: Program = match serde_json::from_str(&input) {
         Err(e) => {
             eprintln!("error: {}", e);
             return ExitCode::FAILURE;
@@ -20,6 +36,33 @@ fn main() -> ExitCode {
         Ok(json) => json,
     };
 
+    if let Some(cfg_fun) = req.cfg_of {
+        run_cfg(prog, cfg_fun)
+    } else {
+        run_rotate(prog)
+    }
+}
+
+fn run_cfg(prog: Program, cfg_fun: String) -> ExitCode {
+    let matching_funs = prog
+        .functions
+        .iter()
+        .filter(|f| f.name == cfg_fun)
+        .collect::<Vec<_>>();
+    if let [f] = matching_funs[..] {
+        let cfg = Cfg::from_function(f);
+        println!("{}", cfg.as_dot());
+        ExitCode::SUCCESS
+    } else if matching_funs.is_empty() {
+        eprintln!("error: no function with name {cfg_fun}");
+        ExitCode::FAILURE
+    } else {
+        eprintln!("error: more than one function with name {cfg_fun}");
+        ExitCode::FAILURE
+    }
+}
+
+fn run_rotate(mut prog: Program) -> ExitCode {
     rotate_functions(&mut prog);
     while !brili_says_it_runs(&prog) {
         rotate_functions(&mut prog);

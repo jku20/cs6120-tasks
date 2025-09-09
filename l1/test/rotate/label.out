@@ -1,0 +1,7 @@
+@main {
+  one: int = const 1;
+  print one;
+.top:
+  zero: int = const 0;
+.middle:
+}
