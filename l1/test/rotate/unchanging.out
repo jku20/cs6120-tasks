@@ -1,0 +1,6 @@
+@main {
+  zero: int = const 0;
+  one: int = const 1;
+  sum: int = add zero one;
+  print sum;
+}

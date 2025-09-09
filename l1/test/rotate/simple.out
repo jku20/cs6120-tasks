@@ -1,0 +1,5 @@
+@main {
+  one: int = const 1;
+  print one;
+  zero: int = const 0;
+}
