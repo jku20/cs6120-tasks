@@ -93,7 +93,7 @@ fn brili_says_it_runs(p: &Program) -> bool {
     stdin.write_all(prog_str.as_bytes()).unwrap();
     drop(stdin);
     let now = SystemTime::now();
-    while now.elapsed().unwrap().as_secs() < 2 {
+    while now.elapsed().unwrap().as_millis() < 100 {
         let output = c.try_wait().unwrap();
         if let Some(output) = output {
             return output.success();

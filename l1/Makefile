@@ -1,4 +1,4 @@
-TESTS := test/rotate/*.bril
+TESTS := test/*.bril
 
 .PHONY: test
 test:

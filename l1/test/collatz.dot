@@ -1,0 +1,354 @@
+digraph cfg {
+"{
+  op: const,
+  dest: x,
+  type: int,
+  value: 7
+}
+{
+  op: const,
+  dest: one,
+  type: int,
+  value: 1
+}
+{
+  op: const,
+  dest: two,
+  type: int,
+  value: 2
+}
+{
+  op: const,
+  dest: three,
+  type: int,
+  value: 3
+}
+{
+  op: jmp,
+  labels: [
+    print
+  ]
+}" -> "{
+  label: print
+}
+{
+  op: print,
+  args: [
+    x
+  ]
+}
+{
+  op: jmp,
+  labels: [
+    cond
+  ]
+}"
+"{
+  label: cond
+}
+{
+  op: eq,
+  dest: eq_one,
+  type: bool,
+  args: [
+    x,
+    one
+  ]
+}
+{
+  op: br,
+  args: [
+    eq_one
+  ],
+  labels: [
+    end,
+    loop
+  ]
+}" -> "{
+  label: end
+}
+{
+  op: ret
+}"
+"{
+  label: cond
+}
+{
+  op: eq,
+  dest: eq_one,
+  type: bool,
+  args: [
+    x,
+    one
+  ]
+}
+{
+  op: br,
+  args: [
+    eq_one
+  ],
+  labels: [
+    end,
+    loop
+  ]
+}" -> "{
+  label: loop
+}
+{
+  op: div,
+  dest: half,
+  type: int,
+  args: [
+    x,
+    two
+  ]
+}
+{
+  op: mul,
+  dest: doublehalf,
+  type: int,
+  args: [
+    half,
+    two
+  ]
+}
+{
+  op: eq,
+  dest: even,
+  type: bool,
+  args: [
+    x,
+    doublehalf
+  ]
+}
+{
+  op: br,
+  args: [
+    even
+  ],
+  labels: [
+    even,
+    odd
+  ]
+}"
+"{
+  label: loop
+}
+{
+  op: div,
+  dest: half,
+  type: int,
+  args: [
+    x,
+    two
+  ]
+}
+{
+  op: mul,
+  dest: doublehalf,
+  type: int,
+  args: [
+    half,
+    two
+  ]
+}
+{
+  op: eq,
+  dest: even,
+  type: bool,
+  args: [
+    x,
+    doublehalf
+  ]
+}
+{
+  op: br,
+  args: [
+    even
+  ],
+  labels: [
+    even,
+    odd
+  ]
+}" -> "{
+  label: even
+}
+{
+  op: div,
+  dest: x,
+  type: int,
+  args: [
+    x,
+    two
+  ]
+}
+{
+  op: jmp,
+  labels: [
+    print
+  ]
+}"
+"{
+  label: loop
+}
+{
+  op: div,
+  dest: half,
+  type: int,
+  args: [
+    x,
+    two
+  ]
+}
+{
+  op: mul,
+  dest: doublehalf,
+  type: int,
+  args: [
+    half,
+    two
+  ]
+}
+{
+  op: eq,
+  dest: even,
+  type: bool,
+  args: [
+    x,
+    doublehalf
+  ]
+}
+{
+  op: br,
+  args: [
+    even
+  ],
+  labels: [
+    even,
+    odd
+  ]
+}" -> "{
+  label: odd
+}
+{
+  op: mul,
+  dest: x,
+  type: int,
+  args: [
+    x,
+    three
+  ]
+}
+{
+  op: add,
+  dest: x,
+  type: int,
+  args: [
+    x,
+    one
+  ]
+}"
+"{
+  label: even
+}
+{
+  op: div,
+  dest: x,
+  type: int,
+  args: [
+    x,
+    two
+  ]
+}
+{
+  op: jmp,
+  labels: [
+    print
+  ]
+}" -> "{
+  label: print
+}
+{
+  op: print,
+  args: [
+    x
+  ]
+}
+{
+  op: jmp,
+  labels: [
+    cond
+  ]
+}"
+"{
+  label: odd
+}
+{
+  op: mul,
+  dest: x,
+  type: int,
+  args: [
+    x,
+    three
+  ]
+}
+{
+  op: add,
+  dest: x,
+  type: int,
+  args: [
+    x,
+    one
+  ]
+}" -> "{
+  label: print
+}
+{
+  op: print,
+  args: [
+    x
+  ]
+}
+{
+  op: jmp,
+  labels: [
+    cond
+  ]
+}"
+"{
+  label: print
+}
+{
+  op: print,
+  args: [
+    x
+  ]
+}
+{
+  op: jmp,
+  labels: [
+    cond
+  ]
+}" -> "{
+  label: cond
+}
+{
+  op: eq,
+  dest: eq_one,
+  type: bool,
+  args: [
+    x,
+    one
+  ]
+}
+{
+  op: br,
+  args: [
+    eq_one
+  ],
+  labels: [
+    end,
+    loop
+  ]
+}"
+}
