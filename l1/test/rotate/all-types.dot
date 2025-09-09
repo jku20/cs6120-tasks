@@ -1,0 +1,185 @@
+digraph cfg {
+"{
+  label: label
+}
+{
+  op: const,
+  dest: zero,
+  type: int,
+  value: 0
+}
+{
+  op: const,
+  dest: one,
+  type: int,
+  value: 1
+}
+{
+  op: add,
+  dest: one,
+  type: int,
+  args: [
+    zero,
+    one
+  ]
+}
+{
+  op: eq,
+  dest: cmp,
+  type: bool,
+  args: [
+    zero,
+    zero
+  ]
+}
+{
+  op: not,
+  dest: cmp,
+  type: bool,
+  args: [
+    cmp
+  ]
+}
+{
+  op: br,
+  args: [
+    cmp
+  ],
+  labels: [
+    label,
+    next
+  ]
+}" -> "{
+  label: label
+}
+{
+  op: const,
+  dest: zero,
+  type: int,
+  value: 0
+}
+{
+  op: const,
+  dest: one,
+  type: int,
+  value: 1
+}
+{
+  op: add,
+  dest: one,
+  type: int,
+  args: [
+    zero,
+    one
+  ]
+}
+{
+  op: eq,
+  dest: cmp,
+  type: bool,
+  args: [
+    zero,
+    zero
+  ]
+}
+{
+  op: not,
+  dest: cmp,
+  type: bool,
+  args: [
+    cmp
+  ]
+}
+{
+  op: br,
+  args: [
+    cmp
+  ],
+  labels: [
+    label,
+    next
+  ]
+}"
+"{
+  label: label
+}
+{
+  op: const,
+  dest: zero,
+  type: int,
+  value: 0
+}
+{
+  op: const,
+  dest: one,
+  type: int,
+  value: 1
+}
+{
+  op: add,
+  dest: one,
+  type: int,
+  args: [
+    zero,
+    one
+  ]
+}
+{
+  op: eq,
+  dest: cmp,
+  type: bool,
+  args: [
+    zero,
+    zero
+  ]
+}
+{
+  op: not,
+  dest: cmp,
+  type: bool,
+  args: [
+    cmp
+  ]
+}
+{
+  op: br,
+  args: [
+    cmp
+  ],
+  labels: [
+    label,
+    next
+  ]
+}" -> "{
+  label: next
+}
+{
+  op: call,
+  funcs: [
+    other_fn
+  ]
+}
+{
+  op: jmp,
+  labels: [
+    end
+  ]
+}"
+"{
+  label: next
+}
+{
+  op: call,
+  funcs: [
+    other_fn
+  ]
+}
+{
+  op: jmp,
+  labels: [
+    end
+  ]
+}" -> "{
+  label: end
+}"
+}

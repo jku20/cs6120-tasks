@@ -1,0 +1,25 @@
+digraph cfg {
+"{
+  label: top
+}
+{
+  op: const,
+  dest: zero,
+  type: int,
+  value: 0
+}" -> "{
+  label: middle
+}
+{
+  op: const,
+  dest: one,
+  type: int,
+  value: 1
+}
+{
+  op: print,
+  args: [
+    one
+  ]
+}"
+}
