@@ -1,0 +1,19 @@
+@other_fn {
+  one: int = const 1;
+  print one;
+  ret;
+  zero: int = const 0;
+}
+@main {
+  call @other_fn;
+  jmp .end;
+.end:
+.label:
+  zero: int = const 0;
+  one: int = const 1;
+  one: int = add zero one;
+  cmp: bool = eq zero zero;
+  cmp: bool = not cmp;
+  br cmp .label .next;
+.next:
+}

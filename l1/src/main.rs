@@ -2,6 +2,7 @@ use brilro::{cfg::analysis::Cfg, parser::ast::Program};
 use std::{
     io::{self, Read, Write},
     process::{Command, ExitCode, Stdio},
+    time::SystemTime,
 };
 
 use argh::FromArgs;
@@ -91,6 +92,14 @@ fn brili_says_it_runs(p: &Program) -> bool {
     let mut stdin = c.stdin.take().unwrap();
     stdin.write_all(prog_str.as_bytes()).unwrap();
     drop(stdin);
-    let output = c.wait().unwrap();
-    output.success()
+    let now = SystemTime::now();
+    while now.elapsed().unwrap().as_secs() < 2 {
+        let output = c.try_wait().unwrap();
+        if let Some(output) = output {
+            return output.success();
+        }
+    }
+    let _ = c.kill();
+    let _ = c.wait();
+    false
 }
