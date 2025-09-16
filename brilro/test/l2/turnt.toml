@@ -1,0 +1,7 @@
+[envs.brilro]
+command = "bril2json < {filename} | cargo run -- -m rotate | bril2txt"
+output.rotated = "-"
+
+[envs.cfg]
+command = "bril2json < {filename} | cargo run -- -m cfg --cfg-fun main"
+output.dot = "-"

@@ -1,11 +1,34 @@
-use brilro::{cfg::analysis::Cfg, parser::ast::Program};
+use brilro::{
+    cfg::analysis::{BasicBlock, Cfg},
+    parser::ast::Program,
+};
 use std::{
     io::{self, Read, Write},
     process::{Command, ExitCode, Stdio},
+    str::FromStr,
     time::SystemTime,
 };
 
 use argh::FromArgs;
+
+enum Mode {
+    Cfg,
+    Rotate,
+    Dce,
+}
+
+impl FromStr for Mode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "cfg" => Ok(Mode::Cfg),
+            "rotate" => Ok(Mode::Rotate),
+            "dce" => Ok(Mode::Dce),
+            _ => Err("unrecognized mode".to_string()),
+        }
+    }
+}
 
 #[derive(FromArgs)]
 /// A funny little tool to rotate bril programs. Here rotate mean to take the last line of a
@@ -14,9 +37,13 @@ use argh::FromArgs;
 /// There is additional functionality to print out CFGs of bril functions in the graphviz DOT
 /// language.
 struct Request {
+    /// select what to do with the program, one of: "cfg", "rotate", "dce"
+    #[argh(option, short = 'm')]
+    mode: Mode,
+
     /// print the given function's CFG and do not rotate any programs.
     #[argh(option)]
-    cfg_of: Option<String>,
+    cfg_fun: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -37,33 +64,56 @@ fn main() -> ExitCode {
         Ok(json) => json,
     };
 
-    if let Some(cfg_fun) = req.cfg_of {
-        run_cfg(prog, cfg_fun)
+    let cfg_fun = if let Some(cfg_fun) = req.cfg_fun {
+        cfg_fun
     } else {
-        run_rotate(prog)
+        "main".to_string()
+    };
+    let res = match req.mode {
+        Mode::Cfg => run_cfg(prog, cfg_fun),
+        Mode::Rotate => run_rotate(prog),
+        Mode::Dce => run_dce(prog, cfg_fun),
+    };
+
+    match res {
+        Ok(exit_code) => exit_code,
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
-fn run_cfg(prog: Program, cfg_fun: String) -> ExitCode {
+fn get_cfg(prog: Program, cfg_fun: String) -> Result<Cfg, String> {
     let matching_funs = prog
         .functions
         .iter()
         .filter(|f| f.name == cfg_fun)
         .collect::<Vec<_>>();
     if let [f] = matching_funs[..] {
-        let cfg = Cfg::from_function(f);
-        println!("{}", cfg.as_dot());
-        ExitCode::SUCCESS
+        Ok(Cfg::from_function(f))
     } else if matching_funs.is_empty() {
-        eprintln!("error: no function with name {cfg_fun}");
-        ExitCode::FAILURE
+        Err(format!("no function with name {cfg_fun}"))
     } else {
-        eprintln!("error: more than one function with name {cfg_fun}");
-        ExitCode::FAILURE
+        Err(format!("error: more than one function with name {cfg_fun}"))
     }
 }
 
-fn run_rotate(mut prog: Program) -> ExitCode {
+fn run_dce(prog: Program, cfg_fun: String) -> Result<ExitCode, String> {
+    let mut cfg = get_cfg(prog, cfg_fun)?;
+    cfg.apply_to_blocks(BasicBlock::dce);
+    let mutated_prog = serde_json::to_string_pretty(&cfg.prog()).unwrap();
+    println!("{mutated_prog}");
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_cfg(prog: Program, cfg_fun: String) -> Result<ExitCode, String> {
+    let cfg = get_cfg(prog, cfg_fun)?;
+    println!("{}", cfg.as_dot());
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_rotate(mut prog: Program) -> Result<ExitCode, String> {
     rotate_functions(&mut prog);
     while !brili_says_it_runs(&prog) {
         rotate_functions(&mut prog);
@@ -72,7 +122,7 @@ fn run_rotate(mut prog: Program) -> ExitCode {
     let out = serde_json::to_string_pretty(&prog).unwrap();
     println!("{out}");
 
-    ExitCode::SUCCESS
+    Ok(ExitCode::SUCCESS)
 }
 
 fn rotate_functions(prog: &mut Program) {

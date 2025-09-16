@@ -1,4 +1,5 @@
-TESTS := test/*.bril
+TESTS := test/l2/*.bril \
+				 test/opt/*.bril
 
 .PHONY: test
 test:

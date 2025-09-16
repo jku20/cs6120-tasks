@@ -1,14 +1,84 @@
-use std::{collections::BTreeMap, fmt::Display};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    fmt::Display,
+};
 
 use crate::parser::ast::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BasicBlock {
     /// Basic blocks are identified by the line they start.
     pub start: usize,
     pub name: Option<String>,
     pub instrs: Vec<Instruction>,
     pub flows_to: Vec<usize>,
+}
+
+impl BasicBlock {
+    /// Returns true on eliminating something.
+    fn eliminate_dead_code(&mut self) -> bool {
+        let mut dead = HashSet::new();
+        let mut maybe_dead: HashMap<&String, usize> = HashMap::new();
+        for (i, insn) in self.instrs.iter().enumerate() {
+            // Remove used insns
+            let args = match insn {
+                Instruction::Constant { .. } => vec![],
+                Instruction::Value { args, .. } => args.clone(),
+                Instruction::Effect { args, .. } => args.clone(),
+                Instruction::Label { .. } => vec![],
+            };
+            for arg in args {
+                maybe_dead.remove(&arg);
+            }
+
+            // Add newly created argument.
+            if let Instruction::Constant { dest, .. } | Instruction::Value { dest, .. } = insn {
+                if maybe_dead.contains_key(dest) {
+                    dead.insert(maybe_dead[dest]);
+                }
+                maybe_dead.insert(dest, i);
+            }
+        }
+
+        let mut eliminated_something = false;
+        let new_instrs = self
+            .instrs
+            .iter()
+            .enumerate()
+            .filter_map(|(i, insn)| {
+                if dead.contains(&i) {
+                    eliminated_something = true;
+                    None
+                } else {
+                    Some(insn.clone())
+                }
+            })
+            .collect();
+        self.instrs = new_instrs;
+        eliminated_something
+    }
+
+    pub fn dce(&mut self) {
+        while self.eliminate_dead_code() {}
+    }
+}
+
+impl PartialEq for BasicBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.start.eq(&other.start)
+    }
+}
+impl Eq for BasicBlock {}
+
+impl PartialOrd for BasicBlock {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for BasicBlock {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.start.cmp(&other.start)
+    }
 }
 
 impl Display for BasicBlock {
@@ -25,12 +95,16 @@ impl Display for BasicBlock {
 
 #[derive(Debug)]
 pub struct Cfg {
+    original_function: Function,
+
+    /// In sorted order by `start`
     blocks: Vec<BasicBlock>,
 }
 
 impl Cfg {
     pub fn from_function(f: &Function) -> Self {
         let base = f.clone();
+        let original_function = f.clone();
 
         // Get labels to convert
         let mut line: BTreeMap<String, usize> = BTreeMap::new();
@@ -120,8 +194,11 @@ impl Cfg {
                 flows_to: vec![],
             });
         }
-
-        Cfg { blocks }
+        blocks.sort_unstable();
+        Cfg {
+            blocks,
+            original_function,
+        }
     }
 
     pub fn as_dot(&self) -> String {
@@ -140,5 +217,30 @@ impl Cfg {
             }
         }
         format!("{}{}", header, "\n}")
+    }
+
+    pub fn apply_to_blocks<F>(&mut self, f: F)
+    where
+        F: Fn(&mut BasicBlock),
+    {
+        for ref mut block in self.blocks.iter_mut() {
+            f(block);
+        }
+    }
+
+    pub fn prog(&self) -> Program {
+        let mut fun = self.original_function.clone();
+        let new_instrs = self
+            .blocks
+            .clone()
+            .into_iter()
+            .flat_map(|b| b.instrs)
+            .collect();
+        fun.instrs = new_instrs;
+        let span = fun.span.clone();
+        Program {
+            functions: vec![fun],
+            span,
+        }
     }
 }
