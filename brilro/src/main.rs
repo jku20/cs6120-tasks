@@ -72,7 +72,7 @@ fn main() -> ExitCode {
     let res = match req.mode {
         Mode::Cfg => run_cfg(prog, cfg_fun),
         Mode::Rotate => run_rotate(prog),
-        Mode::Dce => run_dce(prog, cfg_fun),
+        Mode::Dce => run_dce(prog),
     };
 
     match res {
@@ -99,10 +99,21 @@ fn get_cfg(prog: Program, cfg_fun: String) -> Result<Cfg, String> {
     }
 }
 
-fn run_dce(prog: Program, cfg_fun: String) -> Result<ExitCode, String> {
-    let mut cfg = get_cfg(prog, cfg_fun)?;
-    cfg.apply_to_blocks(BasicBlock::dce);
-    let mutated_prog = serde_json::to_string_pretty(&cfg.prog()).unwrap();
+fn apply_to_all_functions<F>(prog: &mut Program, f: F)
+where
+    F: Fn(&mut BasicBlock),
+{
+    let new_functions = prog.functions.iter().map(|fun| {
+        let mut cfg = Cfg::from_function(fun);
+        cfg.apply_to_blocks(&f);
+        cfg.function()
+    });
+    prog.functions = new_functions.collect();
+}
+
+fn run_dce(mut prog: Program) -> Result<ExitCode, String> {
+    apply_to_all_functions(&mut prog, BasicBlock::dce);
+    let mutated_prog = serde_json::to_string_pretty(&prog).unwrap();
     println!("{mutated_prog}");
     Ok(ExitCode::SUCCESS)
 }

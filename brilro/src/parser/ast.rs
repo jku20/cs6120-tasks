@@ -45,7 +45,7 @@ pub struct Label {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum Literal {
-    Int(u64),
+    Int(i64),
     Bool(bool),
 }
 

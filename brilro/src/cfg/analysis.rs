@@ -228,7 +228,7 @@ impl Cfg {
         }
     }
 
-    pub fn prog(&self) -> Program {
+    pub fn function(&self) -> Function {
         let mut fun = self.original_function.clone();
         let new_instrs = self
             .blocks
@@ -237,10 +237,6 @@ impl Cfg {
             .flat_map(|b| b.instrs)
             .collect();
         fun.instrs = new_instrs;
-        let span = fun.span.clone();
-        Program {
-            functions: vec![fun],
-            span,
-        }
+        fun
     }
 }
