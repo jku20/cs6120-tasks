@@ -1,0 +1,6 @@
+@main {
+  d: int = const 1;
+  b: int = const 1;
+  c: int = const 1;
+  a: int = const 1;
+}
