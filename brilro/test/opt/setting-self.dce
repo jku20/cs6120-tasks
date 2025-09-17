@@ -1,0 +1,5 @@
+@main {
+  a: int = const 1;
+  __brilro_fresh0: int = id a;
+  a: int = id __brilro_fresh0;
+}

@@ -13,3 +13,10 @@ pipeline = [
     "cargo run -- -m dce",
     "brili -p {args}",
 ]
+
+[runs.lvndce]
+pipeline = [
+    "bril2json",
+    "cargo run -- -m lvn-dce",
+    "brili -p {args}",
+]

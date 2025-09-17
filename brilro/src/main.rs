@@ -16,6 +16,7 @@ enum Mode {
     Rotate,
     Dce,
     Lvn,
+    LvnDce,
 }
 
 impl FromStr for Mode {
@@ -27,6 +28,7 @@ impl FromStr for Mode {
             "rotate" => Ok(Mode::Rotate),
             "dce" => Ok(Mode::Dce),
             "lvn" => Ok(Mode::Lvn),
+            "lvn-dce" => Ok(Mode::LvnDce),
             _ => Err("unrecognized mode".to_string()),
         }
     }
@@ -58,7 +60,7 @@ fn main() -> ExitCode {
         eprintln!("error: {}", e);
         return ExitCode::FAILURE;
     }
-    let prog: Program = match serde_json::from_str(&input) {
+    let mut prog: Program = match serde_json::from_str(&input) {
         Err(e) => {
             eprintln!("error: {}", e);
             return ExitCode::FAILURE;
@@ -76,6 +78,10 @@ fn main() -> ExitCode {
         Mode::Rotate => run_rotate(prog),
         Mode::Dce => run_opt(prog, BasicBlock::dce),
         Mode::Lvn => run_opt(prog, BasicBlock::lvn),
+        Mode::LvnDce => {
+            apply_to_all_functions(&mut prog, BasicBlock::lvn);
+            run_opt(prog, BasicBlock::dce)
+        }
     };
 
     match res {

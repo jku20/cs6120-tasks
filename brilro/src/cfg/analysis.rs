@@ -30,12 +30,16 @@ enum AbstractValue {
         funcs: Vec<String>,
         labels: Vec<String>,
     },
+    Opaque {
+        var: String,
+    },
 }
 
 impl AbstractValue {
     fn from_instruction(
         insn: &Instruction,
         lvn: &HashMap<String, ValueNum>,
+        last_dest: &HashMap<String, (String, Type)>,
     ) -> Result<Self, String> {
         match insn.clone() {
             Instruction::Constant { op, ty, value, .. } => Ok(Self::Constant { op, ty, value }),
@@ -49,7 +53,13 @@ impl AbstractValue {
             } => Ok(Self::Value {
                 op,
                 ty,
-                args: args.into_iter().map(|v| lvn[&v]).collect(),
+                args: args
+                    .into_iter()
+                    .map(|v| {
+                        let real_v = last_dest.get(&v).map(|x| x.0.clone()).unwrap_or(v);
+                        lvn[&real_v]
+                    })
+                    .collect(),
                 funcs,
                 labels,
             }),
@@ -64,6 +74,20 @@ impl AbstractValue {
         _lvn: &HashMap<String, ValueNum>,
         _info: &HashMap<ValueNum, ValueInfo>,
     ) {
+    }
+}
+
+fn is_terminator(insn: &Instruction) -> bool {
+    match insn {
+        Instruction::Effect { op, .. } => match op {
+            EffectOps::Call | EffectOps::Print | EffectOps::Nop => false,
+            EffectOps::Jmp => true,
+            EffectOps::Br => true,
+            EffectOps::Ret => true,
+        },
+        Instruction::Constant { .. } | Instruction::Value { .. } | Instruction::Label { .. } => {
+            false
+        }
     }
 }
 
@@ -123,17 +147,36 @@ impl BasicBlock {
 
     fn replace_insn_args(
         insn: &mut Instruction,
-        lvn: &HashMap<String, ValueNum>,
-        info: &HashMap<ValueNum, ValueInfo>,
+        lvn: &mut HashMap<String, ValueNum>,
+        info: &mut HashMap<ValueNum, ValueInfo>,
+        next_num: &mut usize,
         last_dest: &HashMap<String, (String, Type)>,
     ) {
         match insn {
             Instruction::Constant { .. } | Instruction::Label { .. } => {}
             Instruction::Value { args, .. } | Instruction::Effect { args, .. } => {
                 let new_args = args.clone().into_iter().map(|s| {
-                    let real_s = &last_dest[&s].0;
-                    let n = lvn[real_s];
-                    info[&n].src.clone()
+                    // For variables in previous blocks or function args, they might not be in the
+                    // table.
+                    let real_s = match &last_dest.get(&s) {
+                        Some(s) => &s.0,
+                        None => &s,
+                    };
+                    // If lvn doesn't contain this, the assignment must have happened in the past
+                    // which is represented by an abstract value which is opaque. It will compare
+                    // equal to other opaque types with the same variable.
+                    if !lvn.contains_key(real_s) {
+                        lvn.insert(real_s.clone(), *next_num);
+                        let vi = ValueInfo {
+                            src: real_s.clone(),
+                            value: AbstractValue::Opaque {
+                                var: real_s.clone(),
+                            },
+                        };
+                        info.insert(*next_num, vi);
+                        *next_num += 1;
+                    }
+                    info[&lvn[real_s]].src.clone()
                 });
                 args.clear();
                 args.extend(new_args);
@@ -150,10 +193,17 @@ impl BasicBlock {
         let mut last_dest = HashMap::new();
         for insn in &self.instrs {
             let mut new_insn = insn.clone();
-            Self::replace_insn_args(&mut new_insn, &lvn, &info, &last_dest);
+            Self::replace_insn_args(
+                &mut new_insn,
+                &mut lvn,
+                &mut info,
+                &mut next_num,
+                &last_dest,
+            );
             match insn {
                 i @ Instruction::Constant { dest, ty, .. }
                 | i @ Instruction::Value { dest, ty, .. } => {
+                    let mut abstr = AbstractValue::from_instruction(i, &lvn, &last_dest).unwrap();
                     let dest = match info.values().find(|v| v.src == *dest) {
                         Some(_) => {
                             let fresh = format!("__brilro_fresh{fresh_idx}");
@@ -169,12 +219,8 @@ impl BasicBlock {
                             }
                             fresh
                         }
-                        None => {
-                            last_dest.insert(dest.clone(), (dest.clone(), ty.clone()));
-                            dest.clone()
-                        }
+                        None => dest.clone(),
                     };
-                    let mut abstr = AbstractValue::from_instruction(i, &lvn).unwrap();
                     abstr.canonicalize(&lvn, &info);
                     let mut found = false;
                     for (&k, v) in &info {
@@ -200,18 +246,20 @@ impl BasicBlock {
             new_instrs.push(new_insn);
         }
 
+        let maybe_append = new_instrs.pop_if(|p| is_terminator(p));
         for (dest, (fresh, ty)) in last_dest {
-            if fresh != dest {
-                new_instrs.push(Instruction::Value {
-                    op: ValueOps::Id,
-                    dest,
-                    ty,
-                    args: vec![fresh],
-                    funcs: vec![],
-                    labels: vec![],
-                    span: None,
-                });
-            }
+            new_instrs.push(Instruction::Value {
+                op: ValueOps::Id,
+                dest,
+                ty,
+                args: vec![fresh],
+                funcs: vec![],
+                labels: vec![],
+                span: None,
+            });
+        }
+        if let Some(insn) = maybe_append {
+            new_instrs.push(insn);
         }
         self.instrs = new_instrs;
     }
