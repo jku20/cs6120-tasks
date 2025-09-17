@@ -14,6 +14,65 @@ pub struct BasicBlock {
     pub flows_to: Vec<usize>,
 }
 
+type ValueNum = usize;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum AbstractValue {
+    Constant {
+        op: ConstOps,
+        ty: Type,
+        value: Literal,
+    },
+    Value {
+        op: ValueOps,
+        ty: Type,
+        args: Vec<ValueNum>,
+        funcs: Vec<String>,
+        labels: Vec<String>,
+    },
+}
+
+impl AbstractValue {
+    fn from_instruction(
+        insn: &Instruction,
+        lvn: &HashMap<String, ValueNum>,
+    ) -> Result<Self, String> {
+        match insn.clone() {
+            Instruction::Constant { op, ty, value, .. } => Ok(Self::Constant { op, ty, value }),
+            Instruction::Value {
+                op,
+                ty,
+                args,
+                funcs,
+                labels,
+                ..
+            } => Ok(Self::Value {
+                op,
+                ty,
+                args: args.into_iter().map(|v| lvn[&v]).collect(),
+                funcs,
+                labels,
+            }),
+            Instruction::Effect { .. } | Instruction::Label { .. } => {
+                Err("instruction not of value or constant type.".to_string())
+            }
+        }
+    }
+
+    fn canonicalize(
+        &mut self,
+        _lvn: &HashMap<String, ValueNum>,
+        _info: &HashMap<ValueNum, ValueInfo>,
+    ) {
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ValueInfo {
+    src: String,
+    value: AbstractValue,
+}
+
 impl BasicBlock {
     /// Returns true on eliminating something.
     fn eliminate_dead_code(&mut self) -> bool {
@@ -60,6 +119,105 @@ impl BasicBlock {
 
     pub fn dce(&mut self) {
         while self.eliminate_dead_code() {}
+    }
+
+    fn replace_insn_args(
+        insn: &mut Instruction,
+        lvn: &HashMap<String, ValueNum>,
+        info: &HashMap<ValueNum, ValueInfo>,
+        last_dest: &HashMap<String, (String, Type)>,
+    ) {
+        match insn {
+            Instruction::Constant { .. } | Instruction::Label { .. } => {}
+            Instruction::Value { args, .. } | Instruction::Effect { args, .. } => {
+                let new_args = args.clone().into_iter().map(|s| {
+                    let real_s = &last_dest[&s].0;
+                    let n = lvn[real_s];
+                    info[&n].src.clone()
+                });
+                args.clear();
+                args.extend(new_args);
+            }
+        }
+    }
+
+    fn canonicalize_values(&mut self) {
+        let mut next_num = 0;
+        let mut fresh_idx = 0;
+        let mut lvn = HashMap::new();
+        let mut info = HashMap::new();
+        let mut new_instrs = vec![];
+        let mut last_dest = HashMap::new();
+        for insn in &self.instrs {
+            let mut new_insn = insn.clone();
+            Self::replace_insn_args(&mut new_insn, &lvn, &info, &last_dest);
+            match insn {
+                i @ Instruction::Constant { dest, ty, .. }
+                | i @ Instruction::Value { dest, ty, .. } => {
+                    let dest = match info.values().find(|v| v.src == *dest) {
+                        Some(_) => {
+                            let fresh = format!("__brilro_fresh{fresh_idx}");
+                            fresh_idx += 1;
+                            last_dest.insert(dest.clone(), (fresh.clone(), ty.clone()));
+                            match &mut new_insn {
+                                Instruction::Effect { .. } | Instruction::Label { .. } => {}
+                                Instruction::Constant { dest, .. }
+                                | Instruction::Value { dest, .. } => {
+                                    dest.clear();
+                                    dest.push_str(&fresh);
+                                }
+                            }
+                            fresh
+                        }
+                        None => {
+                            last_dest.insert(dest.clone(), (dest.clone(), ty.clone()));
+                            dest.clone()
+                        }
+                    };
+                    let mut abstr = AbstractValue::from_instruction(i, &lvn).unwrap();
+                    abstr.canonicalize(&lvn, &info);
+                    let mut found = false;
+                    for (&k, v) in &info {
+                        if v.value == abstr {
+                            lvn.insert(dest.clone(), k);
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if !found {
+                        lvn.insert(dest.clone(), next_num);
+                        let vi = ValueInfo {
+                            src: dest.clone(),
+                            value: abstr,
+                        };
+                        info.insert(next_num, vi);
+                        next_num += 1;
+                    }
+                }
+                _ => {}
+            }
+            new_instrs.push(new_insn);
+        }
+
+        for (dest, (fresh, ty)) in last_dest {
+            if fresh != dest {
+                new_instrs.push(Instruction::Value {
+                    op: ValueOps::Id,
+                    dest,
+                    ty,
+                    args: vec![fresh],
+                    funcs: vec![],
+                    labels: vec![],
+                    span: None,
+                });
+            }
+        }
+        self.instrs = new_instrs;
+    }
+
+    pub fn lvn(&mut self) {
+        self.canonicalize_values()
     }
 }
 
@@ -109,7 +267,7 @@ impl Cfg {
         // Get labels to convert
         let mut line: BTreeMap<String, usize> = BTreeMap::new();
         for (i, insn) in base.instrs.iter().enumerate() {
-            if let Instruction::Label { label } = insn.clone() {
+            if let Instruction::Label { label, .. } = insn.clone() {
                 line.insert(label, i);
             }
         }
@@ -120,7 +278,7 @@ impl Cfg {
         let mut blocks = vec![];
         for (i, insn) in base.instrs.iter().enumerate() {
             match insn {
-                Instruction::Label { label } => {
+                Instruction::Label { label, .. } => {
                     if instrs.is_empty() {
                         // This label is the first thing in the block.
                         name = Some(label.clone());

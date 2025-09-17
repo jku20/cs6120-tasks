@@ -1,3 +1,7 @@
 [envs.dce]
 command = "bril2json < {filename} | cargo run -- -m dce | bril2txt"
 output.dce = "-"
+
+[envs.lvn]
+command = "bril2json < {filename} | cargo run -- -m lvn | bril2txt"
+output.dce = "-"

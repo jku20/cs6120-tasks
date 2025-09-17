@@ -1,0 +1,9 @@
+@main {
+  one: int = const 1;
+  one2: int = const 1;
+  two: int = const 2;
+  yet_another: int = add one one2;
+  print yet_another;
+  yet_another: int = add one two;
+  print yet_another;
+}

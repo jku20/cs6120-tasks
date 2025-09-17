@@ -8,7 +8,7 @@ pub struct Program {
     pub span: Option<Span>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Type {
     Int,
@@ -35,21 +35,14 @@ pub struct Function {
     pub span: Option<Span>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Label {
-    pub name: String,
-    #[serde(flatten, skip_serializing_if = "Option::is_none")]
-    pub span: Option<Span>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum Literal {
     Int(i64),
     Bool(bool),
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EffectOps {
     Jmp,
@@ -60,7 +53,7 @@ pub enum EffectOps {
     Nop,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ValueOps {
     Add,
@@ -79,13 +72,13 @@ pub enum ValueOps {
     Id,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ConstOps {
     Const,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum Instruction {
     Constant {
@@ -124,16 +117,18 @@ pub enum Instruction {
     },
     Label {
         label: String,
+        #[serde(flatten, skip_serializing_if = "Option::is_none")]
+        span: Option<Span>,
     },
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Pos {
     pub row: usize,
     pub col: usize,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Span {
     pub pos: Pos,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -15,6 +15,7 @@ enum Mode {
     Cfg,
     Rotate,
     Dce,
+    Lvn,
 }
 
 impl FromStr for Mode {
@@ -25,6 +26,7 @@ impl FromStr for Mode {
             "cfg" => Ok(Mode::Cfg),
             "rotate" => Ok(Mode::Rotate),
             "dce" => Ok(Mode::Dce),
+            "lvn" => Ok(Mode::Lvn),
             _ => Err("unrecognized mode".to_string()),
         }
     }
@@ -35,9 +37,9 @@ impl FromStr for Mode {
 /// function and put it at the beginning.
 ///
 /// There is additional functionality to print out CFGs of bril functions in the graphviz DOT
-/// language.
+/// language and do various compiler optimizations.
 struct Request {
-    /// select what to do with the program, one of: "cfg", "rotate", "dce"
+    /// select what to do with the program, one of: "cfg", "rotate", "dce", "lvn"
     #[argh(option, short = 'm')]
     mode: Mode,
 
@@ -72,7 +74,8 @@ fn main() -> ExitCode {
     let res = match req.mode {
         Mode::Cfg => run_cfg(prog, cfg_fun),
         Mode::Rotate => run_rotate(prog),
-        Mode::Dce => run_dce(prog),
+        Mode::Dce => run_opt(prog, BasicBlock::dce),
+        Mode::Lvn => run_opt(prog, BasicBlock::lvn),
     };
 
     match res {
@@ -111,8 +114,11 @@ where
     prog.functions = new_functions.collect();
 }
 
-fn run_dce(mut prog: Program) -> Result<ExitCode, String> {
-    apply_to_all_functions(&mut prog, BasicBlock::dce);
+fn run_opt<F>(mut prog: Program, f: F) -> Result<ExitCode, String>
+where
+    F: Fn(&mut BasicBlock),
+{
+    apply_to_all_functions(&mut prog, f);
     let mutated_prog = serde_json::to_string_pretty(&prog).unwrap();
     println!("{mutated_prog}");
     Ok(ExitCode::SUCCESS)
