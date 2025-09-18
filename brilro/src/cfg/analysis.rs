@@ -204,7 +204,16 @@ impl BasicBlock {
                 i @ Instruction::Constant { dest, ty, .. }
                 | i @ Instruction::Value { dest, ty, .. } => {
                     let mut abstr = AbstractValue::from_instruction(i, &lvn, &last_dest).unwrap();
-                    let dest = match info.values().find(|v| v.src == *dest) {
+                    let dest = match info.values().find(|v| {
+                        v.src == *dest
+                            && !matches!(
+                                v,
+                                ValueInfo {
+                                    value: AbstractValue::Opaque { .. },
+                                    ..
+                                }
+                            )
+                    }) {
                         Some(_) => {
                             let fresh = format!("__brilro_fresh{fresh_idx}");
                             fresh_idx += 1;
@@ -431,6 +440,64 @@ impl Cfg {
     {
         for ref mut block in self.blocks.iter_mut() {
             f(block);
+        }
+    }
+
+    /// Basic block dce is nice, but a function global dce is also kind of needed.
+    pub fn dce(&mut self) {
+        loop {
+            let assigned =
+                self.blocks
+                    .iter()
+                    .flat_map(|block| {
+                        block.instrs.iter().filter_map(|insn| match insn {
+                            Instruction::Constant { dest, .. }
+                            | Instruction::Value { dest, .. } => Some(dest.clone()),
+                            Instruction::Effect { .. } | Instruction::Label { .. } => None,
+                        })
+                    })
+                    .collect::<HashSet<String>>();
+            let used =
+                self.blocks
+                    .iter()
+                    .flat_map(|block| {
+                        block
+                            .instrs
+                            .iter()
+                            .filter_map(|insn| match insn {
+                                Instruction::Effect { args, .. }
+                                | Instruction::Value { args, .. } => Some(args.clone()),
+                                Instruction::Label { .. } | Instruction::Constant { .. } => None,
+                            })
+                            .flatten()
+                    })
+                    .collect::<HashSet<String>>();
+
+            let mut removed_insn = false;
+            let unused: HashSet<_> = assigned.difference(&used).collect();
+            for block in self.blocks.iter_mut() {
+                block.instrs.retain(|i| match i {
+                    Instruction::Value { dest, .. } | Instruction::Constant { dest, .. } => {
+                        if unused.contains(dest) {
+                            removed_insn = true;
+                        }
+                        !unused.contains(dest)
+                    }
+                    Instruction::Effect { .. } | Instruction::Label { .. } => true,
+                });
+            }
+
+            let mut block_removed_insn = true;
+            while block_removed_insn {
+                block_removed_insn = false;
+                for block in self.blocks.iter_mut() {
+                    block_removed_insn |= block.eliminate_dead_code();
+                    removed_insn |= block_removed_insn;
+                }
+            }
+            if !removed_insn {
+                break;
+            }
         }
     }
 

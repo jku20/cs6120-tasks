@@ -76,11 +76,11 @@ fn main() -> ExitCode {
     let res = match req.mode {
         Mode::Cfg => run_cfg(prog, cfg_fun),
         Mode::Rotate => run_rotate(prog),
-        Mode::Dce => run_opt(prog, BasicBlock::dce),
+        Mode::Dce => run_dce(prog),
         Mode::Lvn => run_opt(prog, BasicBlock::lvn),
         Mode::LvnDce => {
             apply_to_all_functions(&mut prog, BasicBlock::lvn);
-            run_opt(prog, BasicBlock::dce)
+            run_dce(prog)
         }
     };
 
@@ -118,6 +118,17 @@ where
         cfg.function()
     });
     prog.functions = new_functions.collect();
+}
+
+fn run_dce(mut prog: Program) -> Result<ExitCode, String> {
+    for fun in prog.functions.iter_mut() {
+        let mut cfg = Cfg::from_function(fun);
+        cfg.dce();
+        *fun = cfg.function();
+    }
+    let mutated_prog = serde_json::to_string_pretty(&prog).unwrap();
+    println!("{mutated_prog}");
+    Ok(ExitCode::SUCCESS)
 }
 
 fn run_opt<F>(mut prog: Program, f: F) -> Result<ExitCode, String>
