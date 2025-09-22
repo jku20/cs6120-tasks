@@ -7,8 +7,8 @@
   __brilro_fresh1: int = const 1;
   __brilro_fresh2: int = const 1;
   __brilro_fresh3: int = const 1;
-  c: int = id __brilro_fresh2;
   a: int = id __brilro_fresh3;
-  d: int = id __brilro_fresh0;
   b: int = id __brilro_fresh1;
+  c: int = id __brilro_fresh2;
+  d: int = id __brilro_fresh0;
 }

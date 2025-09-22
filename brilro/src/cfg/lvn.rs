@@ -199,9 +199,9 @@ impl BasicBlock {
         }
 
         let maybe_append = new_instrs.pop_if(|p| is_terminator(p));
-        let mut sorted_dest: Vec<_> = last_dest.iter().collect();
-        sorted_dest.sort_unstable();
-        for (dest, (fresh, ty)) in sorted_dest.into_iter() {
+        let mut sorted_vals: Vec<_> = last_dest.into_iter().collect();
+        sorted_vals.sort_by(|a, b| a.0.cmp(&b.0));
+        for (dest, (fresh, ty)) in sorted_vals {
             new_instrs.push(Instruction::Value {
                 op: ValueOps::Id,
                 dest,
