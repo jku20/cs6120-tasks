@@ -79,7 +79,7 @@ fn main() -> ExitCode {
         Mode::Dce => run_dce(prog),
         Mode::Lvn => run_opt(prog, BasicBlock::lvn),
         Mode::LvnDce => {
-            apply_to_all_functions(&mut prog, BasicBlock::lvn);
+            apply_to_all_blocks(&mut prog, BasicBlock::lvn);
             run_dce(prog)
         }
     };
@@ -108,7 +108,7 @@ fn get_cfg(prog: Program, cfg_fun: String) -> Result<Cfg, String> {
     }
 }
 
-fn apply_to_all_functions<F>(prog: &mut Program, f: F)
+fn apply_to_all_blocks<F>(prog: &mut Program, f: F)
 where
     F: Fn(&mut BasicBlock),
 {
@@ -135,7 +135,7 @@ fn run_opt<F>(mut prog: Program, f: F) -> Result<ExitCode, String>
 where
     F: Fn(&mut BasicBlock),
 {
-    apply_to_all_functions(&mut prog, f);
+    apply_to_all_blocks(&mut prog, f);
     let mutated_prog = serde_json::to_string_pretty(&prog).unwrap();
     println!("{mutated_prog}");
     Ok(ExitCode::SUCCESS)
