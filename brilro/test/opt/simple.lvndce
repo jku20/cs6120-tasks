@@ -1,0 +1,4 @@
+@main {
+  __brilro_fresh0: int = const 2;
+  print __brilro_fresh0;
+}

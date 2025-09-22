@@ -29,7 +29,7 @@ pub struct Function {
     pub args: Vec<Arg>,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub ty: Option<Type>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub instrs: Vec<Instruction>,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub span: Option<Span>,

@@ -1,0 +1,10 @@
+@main {
+  one: int = const 1;
+  one2: int = const 1;
+  two: int = const 2;
+  yet_another: int = add one one;
+  print yet_another;
+  __brilro_fresh0: int = add one two;
+  print __brilro_fresh0;
+  yet_another: int = id __brilro_fresh0;
+}

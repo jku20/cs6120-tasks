@@ -1,3 +1,2 @@
 @main {
-  tmp2: int = const -1;
 }

@@ -1,0 +1,14 @@
+@main {
+  a: int = const 1;
+  b: int = add a a;
+  c: int = mul b b;
+  d: int = mul a a;
+  __brilro_fresh0: int = const 1;
+  __brilro_fresh1: int = const 1;
+  __brilro_fresh2: int = const 1;
+  __brilro_fresh3: int = const 1;
+  c: int = id __brilro_fresh2;
+  a: int = id __brilro_fresh3;
+  d: int = id __brilro_fresh0;
+  b: int = id __brilro_fresh1;
+}

@@ -1,0 +1,10 @@
+@main {
+  one: int = const 1;
+  another_one: int = const 1;
+  yet_another: int = add one one;
+  still_redundant: int = add one one;
+  print one;
+  print one;
+  print yet_another;
+  print yet_another;
+}
