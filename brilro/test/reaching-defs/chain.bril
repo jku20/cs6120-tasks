@@ -1,0 +1,10 @@
+@main {
+.one:
+  one: int = const 1;
+.two:
+  two: int = const 2;
+  jmp .one;
+.three:
+  three: int = const 3;
+  jmp .two;
+}

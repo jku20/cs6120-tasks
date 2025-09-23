@@ -1,9 +1,10 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use crate::parser::ast::*;
 
 use super::analysis::{BasicBlock, Cfg};
 
+#[derive(Debug)]
 pub struct Info<S> {
     block: BasicBlock,
     inset: S,
@@ -11,7 +12,7 @@ pub struct Info<S> {
 }
 
 pub trait Flow {
-    type Set: Clone + Eq;
+    type Set: Clone + Eq + std::fmt::Debug;
 
     fn transfer(block: &mut Info<Self::Set>);
     fn merge(a: &Self::Set, b: &Self::Set) -> Self::Set;
@@ -23,7 +24,7 @@ pub trait Flow {
 pub struct ReachingDefinitions {}
 
 impl Flow for ReachingDefinitions {
-    type Set = HashSet<(usize, String)>;
+    type Set = BTreeSet<(usize, String)>;
 
     fn transfer(block: &mut Info<Self::Set>) {
         let mut outset = block.inset.clone();
@@ -33,8 +34,8 @@ impl Flow for ReachingDefinitions {
                     if let Some(p) = outset.iter().find(|(_, s)| s == dest) {
                         let p = p.clone();
                         outset.remove(&p);
-                        outset.insert((block.block.start, dest.clone()));
                     }
+                    outset.insert((block.block.start, dest.clone()));
                 }
                 Instruction::Effect { .. } | Instruction::Label { .. } => {}
             }
@@ -47,13 +48,13 @@ impl Flow for ReachingDefinitions {
     }
 
     fn inital() -> Self::Set {
-        HashSet::new()
+        BTreeSet::new()
     }
 
     fn string_of_set(s: &Self::Set) -> String {
         let mut out = "".to_string();
         for (k, v) in s {
-            if out.is_empty() {
+            if !out.is_empty() {
                 out = format!("{out}, ({k}: {v})");
             } else {
                 out = format!("({k}: {v})");
@@ -85,14 +86,18 @@ impl<T: Flow> ShimmedCfg<T> {
     pub fn solve(&mut self) {
         let mut worklist: Vec<usize> = (0..self.blocks.len()).collect();
         while let Some(b) = worklist.pop() {
-            let parents = self.blocks.iter().filter(|i| i.block.flows_to.contains(&b));
+            let parents = self
+                .blocks
+                .iter()
+                .filter(|i| i.block.flows_to.contains(&self.blocks[b].block.start));
             let merged = parents.fold(T::inital(), |acc, p| T::merge(&p.outset, &acc));
             self.blocks[b].inset = merged;
             let last_out = self.blocks[b].outset.clone();
             T::transfer(&mut self.blocks[b]);
             if last_out != self.blocks[b].outset {
                 for &s in &self.blocks[b].block.flows_to {
-                    worklist.push(s);
+                    let to_push = self.blocks.iter().position(|p| p.block.start == s).unwrap();
+                    worklist.push(to_push);
                 }
             }
         }

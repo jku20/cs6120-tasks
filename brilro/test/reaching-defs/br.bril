@@ -1,0 +1,11 @@
+@main {
+.l1:
+  l1: int = const 1;
+  jmp .l1;
+.l2:
+  l2: int = const 2;
+  jmp .l2;
+.l3:
+  l3: bool = const false;
+  br l3 .l1 .l2;
+}

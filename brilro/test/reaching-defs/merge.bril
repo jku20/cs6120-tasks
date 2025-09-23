@@ -1,0 +1,10 @@
+@main {
+.top:
+  top: int = const 1;
+.l1:
+  left: int = const 1;
+  jmp .top;
+.l2:
+  right: int = const 1;
+  jmp .top;
+}

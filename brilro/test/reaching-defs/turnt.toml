@@ -1,0 +1,3 @@
+[envs.reachingdefs]
+command = "bril2json < {filename} | cargo run -- -m reaching-defs"
+output.reachingdefs = "-"

@@ -1,0 +1,9 @@
+@main {
+.top:
+  top: int = const 1;
+.mid:
+  mid: int = const 1;
+  jmp .top;
+.bot:
+  bot: int = const 1;
+}
