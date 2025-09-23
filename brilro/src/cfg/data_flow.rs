@@ -10,7 +10,7 @@ pub struct Info<S> {
     outset: S,
 }
 
-trait Flow {
+pub trait Flow {
     type Set: Clone + Eq;
 
     fn transfer(block: &mut Info<Self::Set>);
@@ -20,12 +20,7 @@ trait Flow {
     fn string_of_set(s: &Self::Set) -> String;
 }
 
-struct ReachingDefinitions {}
-impl ReachingDefinitions {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct ReachingDefinitions {}
 
 impl Flow for ReachingDefinitions {
     type Set = HashSet<(usize, String)>;
@@ -58,7 +53,7 @@ impl Flow for ReachingDefinitions {
     fn string_of_set(s: &Self::Set) -> String {
         let mut out = "".to_string();
         for (k, v) in s {
-            if out != "" {
+            if out.is_empty() {
                 out = format!("{out}, ({k}: {v})");
             } else {
                 out = format!("({k}: {v})");

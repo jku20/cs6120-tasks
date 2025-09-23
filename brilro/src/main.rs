@@ -1,5 +1,8 @@
 use brilro::{
-    cfg::analysis::{BasicBlock, Cfg},
+    cfg::{
+        analysis::{BasicBlock, Cfg},
+        data_flow::{ReachingDefinitions, ShimmedCfg},
+    },
     parser::ast::Program,
 };
 use std::{
@@ -17,6 +20,7 @@ enum Mode {
     Dce,
     Lvn,
     LvnDce,
+    ReachingDefs,
 }
 
 impl FromStr for Mode {
@@ -29,6 +33,7 @@ impl FromStr for Mode {
             "dce" => Ok(Mode::Dce),
             "lvn" => Ok(Mode::Lvn),
             "lvn-dce" => Ok(Mode::LvnDce),
+            "reaching-defs" => Ok(Mode::ReachingDefs),
             _ => Err("unrecognized mode".to_string()),
         }
     }
@@ -41,7 +46,8 @@ impl FromStr for Mode {
 /// There is additional functionality to print out CFGs of bril functions in the graphviz DOT
 /// language and do various compiler optimizations.
 struct Request {
-    /// select what to do with the program, one of: "cfg", "rotate", "dce", "lvn"
+    /// select what to do with the program, one of: "cfg", "rotate", "dce", "lvn", "lvn-dce",
+    /// "reading-defs"
     #[argh(option, short = 'm')]
     mode: Mode,
 
@@ -82,6 +88,7 @@ fn main() -> ExitCode {
             apply_to_all_blocks(&mut prog, BasicBlock::lvn);
             run_dce(prog)
         }
+        Mode::ReachingDefs => run_reaching_defs(prog, cfg_fun),
     };
 
     match res {
@@ -118,6 +125,14 @@ where
         cfg.function()
     });
     prog.functions = new_functions.collect();
+}
+
+fn run_reaching_defs(prog: Program, cfg_fun: String) -> Result<ExitCode, String> {
+    let cfg = get_cfg(prog, cfg_fun)?;
+    let mut shimmed: ShimmedCfg<ReachingDefinitions> = ShimmedCfg::from_cfg(&cfg);
+    shimmed.solve();
+    shimmed.print_outsets();
+    Ok(ExitCode::SUCCESS)
 }
 
 fn run_dce(mut prog: Program) -> Result<ExitCode, String> {
