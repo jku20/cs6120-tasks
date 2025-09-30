@@ -9,6 +9,7 @@ pub struct BasicBlock {
     pub name: Option<String>,
     pub instrs: Vec<Instruction>,
     pub flows_to: Vec<usize>,
+    pub pred: Vec<usize>,
 }
 
 impl BasicBlock {}
@@ -43,7 +44,7 @@ impl Display for BasicBlock {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Cfg {
     pub(super) original_function: Function,
 
@@ -83,6 +84,7 @@ impl Cfg {
                             name: name.clone(),
                             instrs: instrs.clone(),
                             flows_to: vec![i],
+                            pred: vec![],
                         });
 
                         instrs = vec![insn.clone()];
@@ -100,6 +102,7 @@ impl Cfg {
                                 name: name.clone(),
                                 instrs: instrs.clone(),
                                 flows_to: vec![line[&labels[0]]],
+                                pred: vec![],
                             });
                             instrs = vec![];
                             start = i + 1;
@@ -111,6 +114,7 @@ impl Cfg {
                                 name: name.clone(),
                                 instrs: instrs.clone(),
                                 flows_to: vec![line[&labels[0]], line[&labels[1]]],
+                                pred: vec![],
                             });
                             instrs = vec![];
                             start = i + 1;
@@ -122,6 +126,7 @@ impl Cfg {
                                 name: name.clone(),
                                 instrs: instrs.clone(),
                                 flows_to: vec![],
+                                pred: vec![],
                             });
                             instrs = vec![];
                             start = i + 1;
@@ -142,9 +147,28 @@ impl Cfg {
                 name,
                 instrs,
                 flows_to: vec![],
+                pred: vec![],
             });
         }
         blocks.sort_unstable();
+
+        let blocks = blocks
+            .iter()
+            .map(|block| BasicBlock {
+                pred: blocks
+                    .iter()
+                    .filter_map(|i| {
+                        if i.flows_to.contains(&block.start) {
+                            Some(i.start)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                ..block.clone()
+            })
+            .collect();
+
         Cfg {
             blocks,
             original_function,
@@ -188,5 +212,12 @@ impl Cfg {
             .collect();
         fun.instrs = new_instrs;
         fun
+    }
+
+    /// Returns the block given the block start.
+    ///
+    /// Panics if start isn't found.
+    pub fn block(&self, start: usize) -> &BasicBlock {
+        self.blocks.iter().find(|p| p.start == start).unwrap()
     }
 }

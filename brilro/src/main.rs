@@ -2,6 +2,7 @@ use brilro::{
     cfg::{
         analysis::{BasicBlock, Cfg},
         data_flow::{ReachingDefinitions, ShimmedCfg},
+        dominator::DominatorTree,
     },
     parser::ast::Program,
 };
@@ -21,6 +22,7 @@ enum Mode {
     Lvn,
     LvnDce,
     ReachingDefs,
+    Dominator,
 }
 
 impl FromStr for Mode {
@@ -34,6 +36,7 @@ impl FromStr for Mode {
             "lvn" => Ok(Mode::Lvn),
             "lvn-dce" => Ok(Mode::LvnDce),
             "reaching-defs" => Ok(Mode::ReachingDefs),
+            "dom" => Ok(Mode::Dominator),
             _ => Err("unrecognized mode".to_string()),
         }
     }
@@ -89,6 +92,7 @@ fn main() -> ExitCode {
             run_dce(prog)
         }
         Mode::ReachingDefs => run_reaching_defs(prog, cfg_fun),
+        Mode::Dominator => run_dom(prog, cfg_fun),
     };
 
     match res {
@@ -125,6 +129,17 @@ where
         cfg.function()
     });
     prog.functions = new_functions.collect();
+}
+
+fn run_dom(prog: Program, cfg_fun: String) -> Result<ExitCode, String> {
+    let cfg = get_cfg(prog, cfg_fun)?;
+    let dom = DominatorTree::from_cfg(&cfg);
+    if dom.dominators_correct() {
+        println!("dominators correct");
+        Ok(ExitCode::SUCCESS)
+    } else {
+        Err("dominators incorrect, bug somewhere!!!".into())
+    }
 }
 
 fn run_reaching_defs(prog: Program, cfg_fun: String) -> Result<ExitCode, String> {
