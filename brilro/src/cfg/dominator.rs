@@ -118,10 +118,22 @@ impl DominatorTree {
             }
         }
 
-        self.dom.iter().all(|(d, dominates)| {
-            dominates.iter().all(|looking_for| {
-                actually_dominates(self, 0, *looking_for, *d, 0, self.cfg.blocks.len())
-            })
-        })
+        for dominator in &self.cfg.blocks {
+            for dominee in &self.cfg.blocks {
+                let dominates = actually_dominates(
+                    self,
+                    0,
+                    dominee.start,
+                    dominator.start,
+                    0,
+                    self.cfg.blocks.len(),
+                );
+                let thinks_it_dominates = self.dom[&dominator.start].contains(&dominee.start);
+                if thinks_it_dominates != dominates {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
