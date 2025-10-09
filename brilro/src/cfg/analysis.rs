@@ -96,7 +96,7 @@ impl Cfg {
                     // We finish a block including this insn
                     instrs.push(insn.clone());
                     match op {
-                        EffectOps::Jmp => {
+                        EffectOp::Jmp => {
                             blocks.push(BasicBlock {
                                 start,
                                 name: name.clone(),
@@ -108,7 +108,7 @@ impl Cfg {
                             start = i + 1;
                             name = None;
                         }
-                        EffectOps::Br => {
+                        EffectOp::Br => {
                             blocks.push(BasicBlock {
                                 start,
                                 name: name.clone(),
@@ -120,7 +120,7 @@ impl Cfg {
                             start = i + 1;
                             name = None;
                         }
-                        EffectOps::Ret => {
+                        EffectOp::Ret => {
                             blocks.push(BasicBlock {
                                 start,
                                 name: name.clone(),

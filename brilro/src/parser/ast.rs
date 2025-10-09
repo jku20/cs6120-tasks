@@ -44,18 +44,19 @@ pub enum Literal {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum EffectOps {
+pub enum EffectOp {
     Jmp,
     Br,
     Call,
     Ret,
     Print,
     Nop,
+    Set,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ValueOps {
+pub enum ValueOp {
     Add,
     Mul,
     Sub,
@@ -70,6 +71,7 @@ pub enum ValueOps {
     Or,
     Call,
     Id,
+    Get,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -91,7 +93,7 @@ pub enum Instruction {
         span: Option<Span>,
     },
     Value {
-        op: ValueOps,
+        op: ValueOp,
         dest: String,
         #[serde(rename = "type")]
         ty: Type,
@@ -105,7 +107,7 @@ pub enum Instruction {
         span: Option<Span>,
     },
     Effect {
-        op: EffectOps,
+        op: EffectOp,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         args: Vec<String>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]

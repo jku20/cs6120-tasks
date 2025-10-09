@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::parser::ast::{ConstOps, EffectOps, Instruction, Literal, Type, ValueOps};
+use crate::parser::ast::{ConstOps, EffectOp, Instruction, Literal, Type, ValueOp};
 
 use super::analysis::BasicBlock;
 
@@ -20,7 +20,7 @@ enum AbstractValue {
         value: Literal,
     },
     Value {
-        op: ValueOps,
+        op: ValueOp,
         ty: Type,
         args: Vec<ValueNum>,
         funcs: Vec<String>,
@@ -76,10 +76,10 @@ impl AbstractValue {
 fn is_terminator(insn: &Instruction) -> bool {
     match insn {
         Instruction::Effect { op, .. } => match op {
-            EffectOps::Call | EffectOps::Print | EffectOps::Nop => false,
-            EffectOps::Jmp => true,
-            EffectOps::Br => true,
-            EffectOps::Ret => true,
+            EffectOp::Call | EffectOp::Print | EffectOp::Nop | EffectOp::Set => false,
+            EffectOp::Jmp => true,
+            EffectOp::Br => true,
+            EffectOp::Ret => true,
         },
         Instruction::Constant { .. } | Instruction::Value { .. } | Instruction::Label { .. } => {
             false
@@ -203,7 +203,7 @@ impl BasicBlock {
         sorted_vals.sort_by(|a, b| a.0.cmp(&b.0));
         for (dest, (fresh, ty)) in sorted_vals {
             new_instrs.push(Instruction::Value {
-                op: ValueOps::Id,
+                op: ValueOp::Id,
                 dest,
                 ty,
                 args: vec![fresh],
