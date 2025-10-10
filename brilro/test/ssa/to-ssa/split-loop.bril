@@ -1,0 +1,13 @@
+@main {
+  x: int = const 1;
+.top:
+  x: int = add x x;
+  cond: bool = const false;
+  br cond .l .r;
+.l:
+  x: int = id x;
+  jmp .top;
+.r:
+  x: int = id x;
+  jmp .top;
+}

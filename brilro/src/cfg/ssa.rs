@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::{
     cfg::lvn::is_terminator,
-    parser::ast::{EffectOp, Instruction, Type, ValueOp},
+    parser::ast::{EffectOp, Function, Instruction, Type, ValueOp},
 };
 
 use super::{analysis::Cfg, dominator::DominatorTree};
@@ -24,26 +24,40 @@ impl PhiNode {
 
 #[derive(Debug)]
 struct NameMaker {
-    pub stack: HashMap<String, u32>,
+    pub stack: HashMap<String, Vec<String>>,
+    pub name_nums: HashMap<String, usize>,
 }
 
 impl NameMaker {
     fn new() -> Self {
         Self {
             stack: HashMap::new(),
+            name_nums: HashMap::new(),
         }
     }
 
     fn name(&mut self, name: &str) -> String {
-        format!(
-            "{}{}",
-            name,
-            self.stack.entry(name.to_string()).or_default()
-        )
+        self.stack
+            .entry(name.to_string())
+            .or_insert_with(|| {
+                let new_idx = self.name_nums.entry(name.to_string()).or_default();
+                let name = format!("{name}{new_idx}");
+                *new_idx += 1;
+                vec![name]
+            })
+            .last()
+            .unwrap()
+            .clone()
     }
 
     fn push(&mut self, name: &str) {
-        *self.stack.entry(name.to_string()).or_default() += 1;
+        let new_idx = self.name_nums.entry(name.to_string()).or_default();
+        let new_name = format!("{name}{new_idx}");
+        *new_idx += 1;
+        self.stack
+            .entry(name.to_string())
+            .or_default()
+            .push(new_name);
     }
 }
 
@@ -53,18 +67,22 @@ struct Ssaifier<'a> {
     defs: HashMap<&'a str, BTreeSet<(usize, Type)>>,
     doms: DominatorTree,
     phis: HashMap<usize, HashMap<&'a str, PhiNode>>,
+    types: HashMap<String, Type>,
+    func: Function,
 }
 
 impl<'a> Ssaifier<'a> {
-    fn from_cfg(cfg: &'a Cfg) -> Self {
+    fn from_cfg_and_func(cfg: &'a Cfg, func: &Function) -> Self {
         let mut defs: HashMap<&str, BTreeSet<(usize, Type)>> = HashMap::new();
         let mut vars_defined: HashMap<usize, BTreeSet<&'a str>> = HashMap::new();
+        let mut types = HashMap::new();
         for block in &cfg.blocks {
             for insn in &block.instrs {
                 match insn {
                     Instruction::Constant { dest, ty, .. }
                     | Instruction::Value { dest, ty, .. } => {
                         defs.entry(dest).or_default().insert((block.start, *ty));
+                        types.insert(dest.clone(), *ty);
                         vars_defined.entry(block.start).or_default().insert(dest);
                     }
                     Instruction::Effect { .. } | Instruction::Label { .. } => {}
@@ -76,6 +94,8 @@ impl<'a> Ssaifier<'a> {
             defs,
             doms: DominatorTree::from_cfg(cfg),
             phis: HashMap::new(),
+            types,
+            func: func.clone(),
         }
     }
 
@@ -118,6 +138,7 @@ impl<'a> Ssaifier<'a> {
     }
 
     fn replace_names(
+        types: &mut HashMap<String, Type>,
         insn: &mut Instruction,
         phis: &mut HashMap<usize, HashMap<&'a str, PhiNode>>,
         block_start: usize,
@@ -126,13 +147,23 @@ impl<'a> Ssaifier<'a> {
         // Replace args
         match insn {
             Instruction::Value { args, .. } | Instruction::Effect { args, .. } => {
-                *args = args.iter().map(|n| names.name(n)).collect();
+                *args = args
+                    .iter()
+                    .map(|n| {
+                        eprintln!("arg: {block_start} with {names:?} replacing {n}");
+                        let name = names.name(n);
+                        eprintln!("replacing with {name}");
+                        types.insert(name.clone(), types[n]);
+                        name
+                    })
+                    .collect();
             }
             Instruction::Constant { .. } | Instruction::Label { .. } => {}
         }
         // Replace dest
         match insn {
-            Instruction::Value { dest, op, .. } => {
+            Instruction::Value { dest, op, ty, .. } => {
+                eprintln!("dest: {block_start} with {names:?} replacing {dest}");
                 names.push(dest);
                 let name = names.name(dest);
                 if matches!(op, ValueOp::Get) {
@@ -142,10 +173,15 @@ impl<'a> Ssaifier<'a> {
                         .unwrap()
                         .dest = name.clone();
                 }
+                types.insert(name.clone(), *ty);
                 *dest = name;
             }
-            Instruction::Constant { dest, .. } => {
+            Instruction::Constant { dest, ty, .. } => {
+                eprintln!("dest: {block_start} with {names:?} replacing {dest}");
                 names.push(dest);
+                eprintln!("after: {block_start} with {names:?} replacing {dest}");
+                let name = names.name(dest);
+                types.insert(name.clone(), *ty);
                 *dest = names.name(dest);
             }
             Instruction::Effect { .. } | Instruction::Label { .. } => {}
@@ -157,21 +193,22 @@ impl<'a> Ssaifier<'a> {
         let block = self.cfg.block_mut(block_start);
         let old_stack = names.stack.clone();
         for insn in &mut block.instrs {
-            Self::replace_names(insn, &mut self.phis, block_start, names);
+            Self::replace_names(&mut self.types, insn, &mut self.phis, block_start, names);
         }
         for succ in &block.flows_to {
             if let Some(phis) = self.phis.get_mut(succ) {
                 for (var, phi) in phis {
-                    eprintln!("name: {}", names.name(var));
                     phi.args.insert(block_start, names.name(var));
                 }
             }
         }
         for &domed in &self.doms.im_dom[&block_start].clone() {
             if domed != block_start && self.cfg.block(block_start).flows_to.contains(&domed) {
+                eprintln!("dominating {}", domed);
                 self.rename_block(domed, names);
             }
         }
+        eprintln!("resetting stack");
         names.stack = old_stack;
     }
 
@@ -182,7 +219,7 @@ impl<'a> Ssaifier<'a> {
     fn add_sets(&mut self) {
         for sources in self.phis.values() {
             eprintln!("source: {:?}", sources);
-            for phi in sources.values() {
+            for (orig, phi) in sources {
                 for (&block, set_arg) in &phi.args {
                     let instrs = &mut self.cfg.block_mut(block).instrs;
                     let idx = if is_terminator(instrs.last().unwrap()) {
@@ -190,6 +227,10 @@ impl<'a> Ssaifier<'a> {
                     } else {
                         instrs.len()
                     };
+                    self.types
+                        .insert(phi.dest.clone(), self.types[&orig.to_string()]);
+                    self.types
+                        .insert(set_arg.clone(), self.types[&orig.to_string()]);
                     instrs.insert(
                         idx,
                         Instruction::Effect {
@@ -205,16 +246,83 @@ impl<'a> Ssaifier<'a> {
         }
     }
 
+    fn add_undef_to_block(&mut self, mut cur_defs: HashSet<String>, block_start: usize) {
+        let block = self.cfg.block_mut(block_start);
+        let mut num_inserted = 0;
+        for (idx, insn) in block.instrs.clone().into_iter().enumerate() {
+            match insn {
+                Instruction::Label { .. } => {}
+                Instruction::Constant { dest, .. } => {
+                    cur_defs.insert(dest);
+                }
+                Instruction::Value { args, dest, .. } => {
+                    for arg in &args {
+                        if !cur_defs.contains(arg) {
+                            block.instrs.insert(
+                                idx + num_inserted,
+                                Instruction::Value {
+                                    op: ValueOp::Undef,
+                                    dest: arg.clone(),
+                                    ty: self.types[arg],
+                                    args: vec![],
+                                    funcs: vec![],
+                                    labels: vec![],
+                                    span: None,
+                                },
+                            );
+                            num_inserted += 1;
+                            cur_defs.insert(arg.clone());
+                        }
+                    }
+                    cur_defs.insert(dest);
+                }
+                Instruction::Effect { args, op, .. } => {
+                    for (i, arg) in args.iter().enumerate() {
+                        if i == 0 && matches!(op, EffectOp::Set) {
+                            continue;
+                        }
+                        if !cur_defs.contains(arg) {
+                            block.instrs.insert(
+                                idx + num_inserted,
+                                Instruction::Value {
+                                    op: ValueOp::Undef,
+                                    dest: arg.clone(),
+                                    ty: self.types[arg],
+                                    args: vec![],
+                                    funcs: vec![],
+                                    labels: vec![],
+                                    span: None,
+                                },
+                            );
+                            num_inserted += 1;
+                            cur_defs.insert(arg.clone());
+                        }
+                    }
+                }
+            }
+        }
+        for &domed in &self.doms.im_dom[&block_start].clone() {
+            if domed != block_start && self.cfg.block(block_start).flows_to.contains(&domed) {
+                self.add_undef_to_block(cur_defs.clone(), domed);
+            }
+        }
+    }
+
+    fn add_undefs(&mut self) {
+        self.add_undef_to_block(self.func.args.iter().map(|a| a.name.clone()).collect(), 0);
+    }
+
     fn cfg(self) -> Cfg {
         self.cfg
     }
 }
 
-pub fn to_ssa(cfg: &Cfg) -> Cfg {
-    let mut ssaifier = Ssaifier::from_cfg(cfg);
+pub fn to_ssa(cfg: &Cfg, func: &Function) -> Cfg {
+    let mut ssaifier = Ssaifier::from_cfg_and_func(cfg, func);
     ssaifier.compute_phis();
     ssaifier.rename();
     ssaifier.add_sets();
+    ssaifier.add_undefs();
     ssaifier.cfg()
 }
 

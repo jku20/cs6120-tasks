@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::parser::ast::Instruction;
+use crate::parser::ast::{EffectOp, Instruction};
 
 use super::analysis::{BasicBlock, Cfg};
 
@@ -68,21 +68,27 @@ impl Cfg {
                         })
                     })
                     .collect::<HashSet<String>>();
-            let used =
-                self.blocks
-                    .iter()
-                    .flat_map(|block| {
-                        block
-                            .instrs
-                            .iter()
-                            .filter_map(|insn| match insn {
-                                Instruction::Effect { args, .. }
-                                | Instruction::Value { args, .. } => Some(args.clone()),
-                                Instruction::Label { .. } | Instruction::Constant { .. } => None,
-                            })
-                            .flatten()
-                    })
-                    .collect::<HashSet<String>>();
+            let used = self
+                .blocks
+                .iter()
+                .flat_map(|block| {
+                    block
+                        .instrs
+                        .iter()
+                        .filter_map(|insn| match insn {
+                            Instruction::Effect { args, op, .. } => {
+                                if matches!(op, EffectOp::Set) {
+                                    Some(args[1..].to_vec())
+                                } else {
+                                    Some(args.clone())
+                                }
+                            }
+                            Instruction::Value { args, .. } => Some(args.clone()),
+                            Instruction::Label { .. } | Instruction::Constant { .. } => None,
+                        })
+                        .flatten()
+                })
+                .collect::<HashSet<String>>();
 
             let mut removed_insn = false;
             let unused: HashSet<_> = assigned.difference(&used).collect();
@@ -94,7 +100,17 @@ impl Cfg {
                         }
                         !unused.contains(dest)
                     }
-                    Instruction::Effect { .. } | Instruction::Label { .. } => true,
+                    Instruction::Effect { args, op, .. } => {
+                        if matches!(*op, EffectOp::Set) {
+                            if unused.contains(&args[0]) {
+                                removed_insn = true;
+                            }
+                            !unused.contains(&args[0])
+                        } else {
+                            true
+                        }
+                    }
+                    Instruction::Label { .. } => true,
                 });
             }
 

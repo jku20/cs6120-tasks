@@ -72,6 +72,7 @@ pub enum ValueOp {
     Call,
     Id,
     Get,
+    Undef,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

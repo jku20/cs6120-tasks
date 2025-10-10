@@ -140,8 +140,8 @@ where
 
 fn run_to_ssa(mut prog: Program) -> Result<ExitCode, String> {
     for f in &mut prog.functions {
-        let cfg = Cfg::from_function(&f);
-        let cfg = ssa::to_ssa(&cfg);
+        let cfg = Cfg::from_function(f);
+        let cfg = ssa::to_ssa(&cfg, f);
         *f = cfg.function();
     }
     println!("{}", serde_json::to_string_pretty(&prog).unwrap());
@@ -150,7 +150,7 @@ fn run_to_ssa(mut prog: Program) -> Result<ExitCode, String> {
 
 fn run_from_ssa(mut prog: Program) -> Result<ExitCode, String> {
     for f in &mut prog.functions {
-        let cfg = Cfg::from_function(&f);
+        let cfg = Cfg::from_function(f);
         let cfg = ssa::from_ssa(&cfg);
         *f = cfg.function();
     }
