@@ -73,7 +73,7 @@ impl AbstractValue {
     }
 }
 
-fn is_terminator(insn: &Instruction) -> bool {
+pub fn is_terminator(insn: &Instruction) -> bool {
     match insn {
         Instruction::Effect { op, .. } => match op {
             EffectOp::Call | EffectOp::Print | EffectOp::Nop | EffectOp::Set => false,

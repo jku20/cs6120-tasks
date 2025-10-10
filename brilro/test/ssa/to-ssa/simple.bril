@@ -1,0 +1,8 @@
+@main() {
+  x: int = const 1;
+.l1:
+  x: int = add x x;
+.l2:
+  jmp .l1;
+
+}

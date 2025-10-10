@@ -3,3 +3,4 @@ pub mod dce;
 pub mod lvn;
 pub mod data_flow;
 pub mod dominator;
+pub mod ssa;

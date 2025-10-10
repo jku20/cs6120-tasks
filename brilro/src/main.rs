@@ -3,6 +3,7 @@ use brilro::{
         analysis::{BasicBlock, Cfg},
         data_flow::{ReachingDefinitions, ShimmedCfg},
         dominator::DominatorTree,
+        ssa,
     },
     parser::ast::Program,
 };
@@ -23,6 +24,8 @@ enum Mode {
     LvnDce,
     ReachingDefs,
     Dominator,
+    ToSsa,
+    FromSsa,
 }
 
 impl FromStr for Mode {
@@ -37,6 +40,8 @@ impl FromStr for Mode {
             "lvn-dce" => Ok(Mode::LvnDce),
             "reaching-defs" => Ok(Mode::ReachingDefs),
             "dom" => Ok(Mode::Dominator),
+            "to-ssa" => Ok(Mode::ToSsa),
+            "from-ssa" => Ok(Mode::FromSsa),
             _ => Err("unrecognized mode".to_string()),
         }
     }
@@ -50,7 +55,7 @@ impl FromStr for Mode {
 /// language and do various compiler optimizations.
 struct Request {
     /// select what to do with the program, one of: "cfg", "rotate", "dce", "lvn", "lvn-dce",
-    /// "reading-defs"
+    /// "reading-defs", "to-ssa"
     #[argh(option, short = 'm')]
     mode: Mode,
 
@@ -93,6 +98,8 @@ fn main() -> ExitCode {
         }
         Mode::ReachingDefs => run_reaching_defs(prog, cfg_fun),
         Mode::Dominator => run_dom(prog, cfg_fun),
+        Mode::ToSsa => run_to_ssa(prog),
+        Mode::FromSsa => run_from_ssa(prog),
     };
 
     match res {
@@ -129,6 +136,26 @@ where
         cfg.function()
     });
     prog.functions = new_functions.collect();
+}
+
+fn run_to_ssa(mut prog: Program) -> Result<ExitCode, String> {
+    for f in &mut prog.functions {
+        let cfg = Cfg::from_function(&f);
+        let cfg = ssa::to_ssa(&cfg);
+        *f = cfg.function();
+    }
+    println!("{}", serde_json::to_string_pretty(&prog).unwrap());
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_from_ssa(mut prog: Program) -> Result<ExitCode, String> {
+    for f in &mut prog.functions {
+        let cfg = Cfg::from_function(&f);
+        let cfg = ssa::from_ssa(&cfg);
+        *f = cfg.function();
+    }
+    println!("{}", serde_json::to_string_pretty(&prog).unwrap());
+    Ok(ExitCode::SUCCESS)
 }
 
 fn run_dom(prog: Program, cfg_fun: String) -> Result<ExitCode, String> {

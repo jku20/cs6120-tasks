@@ -1,0 +1,3 @@
+[envs.to-ssa]
+command = "bril2json < {filename} | cargo run -- -m to-ssa | bril2txt"
+output.to-ssa = "-"

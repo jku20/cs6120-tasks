@@ -4,8 +4,9 @@ use super::analysis::Cfg;
 
 #[derive(Debug)]
 pub struct DominatorTree {
-    dom: HashMap<usize, HashSet<usize>>,
-    frontier: HashMap<usize, HashSet<usize>>,
+    pub dom: HashMap<usize, HashSet<usize>>,
+    pub im_dom: HashMap<usize, HashSet<usize>>,
+    pub frontier: HashMap<usize, HashSet<usize>>,
     cfg: Cfg,
 }
 
@@ -49,6 +50,7 @@ impl DominatorTree {
                 dominates.entry(b).or_default().insert(domed);
             }
         }
+        let im_dom = dominates.clone();
         // get the transitive closure so we can have the full tree
         let mut changed = true;
         while changed {
@@ -70,11 +72,12 @@ impl DominatorTree {
         for dominator in &cfg.blocks {
             frontier.entry(dominator.start).or_default();
             for maybe_frontier in &cfg.blocks {
-                if !dominates[&dominator.start].contains(&maybe_frontier.start)
+                if (!dominates[&dominator.start].contains(&maybe_frontier.start)
+                    || maybe_frontier.start == dominator.start)
                     && maybe_frontier
                         .pred
                         .iter()
-                        .any(|b| *b != dominator.start && dominates[&dominator.start].contains(b))
+                        .any(|b| dominates[&dominator.start].contains(b))
                 {
                     frontier
                         .entry(dominator.start)
@@ -88,6 +91,7 @@ impl DominatorTree {
             dom: dominates,
             frontier,
             cfg: cfg.clone(),
+            im_dom,
         }
     }
 

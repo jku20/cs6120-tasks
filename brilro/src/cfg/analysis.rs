@@ -220,4 +220,11 @@ impl Cfg {
     pub fn block(&self, start: usize) -> &BasicBlock {
         self.blocks.iter().find(|p| p.start == start).unwrap()
     }
+
+    /// Returns the block given the block start but as a mutable reference.
+    ///
+    /// Panics if start isn't found.
+    pub fn block_mut(&mut self, start: usize) -> &mut BasicBlock {
+        self.blocks.iter_mut().find(|p| p.start == start).unwrap()
+    }
 }
