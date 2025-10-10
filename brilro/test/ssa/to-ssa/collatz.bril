@@ -1,5 +1,10 @@
-@main {
-  x: int = const 7;
+# ARGS: 7
+
+# Compute the Collatz sequence from *n*. This may not terminate for all *n*, but
+# it is at least known to terminate for all *n* up to a large value.
+# see https://en.wikipedia.org/wiki/Collatz_conjecture
+
+@main(x: int) {
   one: int = const 1;
   two: int = const 2;
   three: int = const 3;

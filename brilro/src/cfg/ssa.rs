@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::{
     cfg::lvn::is_terminator,
-    parser::ast::{EffectOp, Function, Instruction, Type, ValueOp},
+    parser::ast::{Arg, EffectOp, Function, Instruction, Type, ValueOp},
 };
 
 use super::{analysis::Cfg, dominator::DominatorTree};
@@ -72,11 +72,23 @@ struct Ssaifier<'a> {
 }
 
 impl<'a> Ssaifier<'a> {
-    fn from_cfg_and_func(cfg: &'a Cfg, func: &Function) -> Self {
+    fn from_cfg_and_func(cfg: &'a Cfg, func: &'a Function) -> Self {
         let mut defs: HashMap<&str, BTreeSet<(usize, Type)>> = HashMap::new();
         let mut vars_defined: HashMap<usize, BTreeSet<&'a str>> = HashMap::new();
         let mut types = HashMap::new();
         for block in &cfg.blocks {
+            if block.start == 0 {
+                for arg in &func.args {
+                    defs.entry(&arg.name)
+                        .or_default()
+                        .insert((block.start, arg.ty));
+                    types.insert(arg.name.clone(), arg.ty);
+                    vars_defined
+                        .entry(block.start)
+                        .or_default()
+                        .insert(&arg.name);
+                }
+            }
             for insn in &block.instrs {
                 match insn {
                     Instruction::Constant { dest, ty, .. }
@@ -143,6 +155,7 @@ impl<'a> Ssaifier<'a> {
         phis: &mut HashMap<usize, HashMap<&'a str, PhiNode>>,
         block_start: usize,
         names: &mut NameMaker,
+        func: &mut Function,
     ) {
         // Replace args
         match insn {
@@ -160,7 +173,6 @@ impl<'a> Ssaifier<'a> {
             }
             Instruction::Constant { .. } | Instruction::Label { .. } => {}
         }
-        // Replace dest
         match insn {
             Instruction::Value { dest, op, ty, .. } => {
                 eprintln!("dest: {block_start} with {names:?} replacing {dest}");
@@ -192,8 +204,27 @@ impl<'a> Ssaifier<'a> {
         eprintln!("renaming: {}", block_start);
         let block = self.cfg.block_mut(block_start);
         let old_stack = names.stack.clone();
+        if block_start == 0 {
+            // Replace dest
+            if block_start == 0 {
+                for arg in &mut self.func.args {
+                    names.push(&arg.name);
+                    let name = names.name(&arg.name);
+                    self.types.insert(name.clone(), arg.ty);
+                    eprintln!("here replacing args");
+                    arg.name = name;
+                }
+            }
+        }
         for insn in &mut block.instrs {
-            Self::replace_names(&mut self.types, insn, &mut self.phis, block_start, names);
+            Self::replace_names(
+                &mut self.types,
+                insn,
+                &mut self.phis,
+                block_start,
+                names,
+                &mut self.func,
+            );
         }
         for succ in &block.flows_to {
             if let Some(phis) = self.phis.get_mut(succ) {
@@ -312,12 +343,12 @@ impl<'a> Ssaifier<'a> {
         self.add_undef_to_block(self.func.args.iter().map(|a| a.name.clone()).collect(), 0);
     }
 
-    fn cfg(self) -> Cfg {
-        self.cfg
+    fn cfg(self) -> (Cfg, Vec<Arg>) {
+        (self.cfg, self.func.args)
     }
 }
 
-pub fn to_ssa(cfg: &Cfg, func: &Function) -> Cfg {
+pub fn to_ssa(cfg: &Cfg, func: &Function) -> (Cfg, Vec<Arg>) {
     let mut ssaifier = Ssaifier::from_cfg_and_func(cfg, func);
     ssaifier.compute_phis();
     ssaifier.rename();
