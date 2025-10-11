@@ -1,0 +1,11 @@
+extract = 'total_dyn_inst: (\d+)'
+benchmarks = '../bril/benchmarks/core/*.bril'
+
+[runs.to-ssa-and-back]
+pipeline = [
+    "bril2json",
+    "cargo run -- -m to-ssa",
+    "cargo run -- -m dce",
+    "cargo run -- -m from-ssa",
+    "brili -p {args}",
+]
