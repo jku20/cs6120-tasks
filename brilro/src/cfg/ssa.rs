@@ -164,9 +164,7 @@ impl<'a> Ssaifier<'a> {
                 *args = args
                     .iter()
                     .map(|n| {
-                        eprintln!("arg: {block_start} with {names:?} replacing {n}");
                         let name = names.name(n);
-                        eprintln!("replacing with {name}");
                         types.insert(name.clone(), types[n]);
                         name
                     })
@@ -176,7 +174,6 @@ impl<'a> Ssaifier<'a> {
         }
         match insn {
             Instruction::Value { dest, op, ty, .. } => {
-                eprintln!("dest: {block_start} with {names:?} replacing {dest}");
                 names.push(dest);
                 let name = names.name(dest);
                 if matches!(op, ValueOp::Get) {
@@ -190,9 +187,7 @@ impl<'a> Ssaifier<'a> {
                 *dest = name;
             }
             Instruction::Constant { dest, ty, .. } => {
-                eprintln!("dest: {block_start} with {names:?} replacing {dest}");
                 names.push(dest);
-                eprintln!("after: {block_start} with {names:?} replacing {dest}");
                 let name = names.name(dest);
                 types.insert(name.clone(), *ty);
                 *dest = names.name(dest);
@@ -207,7 +202,6 @@ impl<'a> Ssaifier<'a> {
         names: &mut NameMaker,
         vis: &mut HashSet<usize>,
     ) {
-        eprintln!("renaming: {}", block_start);
         if vis.contains(&block_start) {
             return;
         }
@@ -221,7 +215,6 @@ impl<'a> Ssaifier<'a> {
                     names.push(&arg.name);
                     let name = names.name(&arg.name);
                     self.types.insert(name.clone(), arg.ty);
-                    eprintln!("here replacing args");
                     self.old_arg_name.insert(name.clone(), arg.name.clone());
                     arg.name = name;
                 }
@@ -240,14 +233,12 @@ impl<'a> Ssaifier<'a> {
         }
         for &domed in &self.doms.im_dom[&block_start].clone() {
             if domed != block_start && self.cfg.block(block_start).flows_to.contains(&domed) {
-                eprintln!("dominating {}", domed);
                 self.rename_block(domed, names, vis);
             }
         }
         for &succ in &self.cfg.block(block_start).flows_to.clone() {
             self.rename_block(succ, names, vis)
         }
-        eprintln!("resetting stack");
         names.stack = old_stack;
     }
 
@@ -256,7 +247,6 @@ impl<'a> Ssaifier<'a> {
         let mut vis: HashSet<usize> = HashSet::new();
         for block in &self.cfg.blocks.clone() {
             if !vis.contains(&block.start) {
-                eprintln!("stating new with name_marker: {name_marker:?}");
                 self.rename_block(block.start, &mut name_marker, &mut vis);
             }
         }
@@ -291,7 +281,6 @@ impl<'a> Ssaifier<'a> {
 
     fn add_sets(&mut self) {
         for sources in self.phis.values() {
-            eprintln!("source: {:?}", sources);
             for (orig, phi) in sources {
                 for (&block, set_arg) in &phi.args {
                     let instrs = &mut self.cfg.block_mut(block).instrs;
@@ -405,12 +394,47 @@ pub fn to_ssa(cfg: &Cfg, func: &Function) -> (Cfg, Vec<Arg>) {
     let mut ssaifier = Ssaifier::from_cfg_and_func(cfg, func);
     ssaifier.compute_phis();
     ssaifier.rename();
-    eprintln!("self: {ssaifier:#?}");
     ssaifier.add_sets();
     ssaifier.add_undefs();
     ssaifier.cfg()
 }
 
 pub fn from_ssa(cfg: &Cfg) -> Cfg {
-    cfg.clone()
+    let mut new_cfg = cfg.clone();
+    let mut types: HashMap<String, Type> = HashMap::new();
+    for block in &new_cfg.blocks {
+        for insn in &block.instrs {
+            if let Instruction::Value { dest, ty, .. } = insn {
+                types.insert(dest.clone(), *ty);
+            }
+        }
+    }
+    for block in &mut new_cfg.blocks {
+        let mut new_insns = vec![];
+        for instr in &block.instrs {
+            match instr {
+                Instruction::Value {
+                    op: ValueOp::Get, ..
+                } => {}
+                Instruction::Effect {
+                    op: EffectOp::Set,
+                    args,
+                    ..
+                } => {
+                    new_insns.push(Instruction::Value {
+                        op: ValueOp::Id,
+                        dest: args[0].clone(),
+                        ty: types[&args[0]],
+                        args: vec![args[1].clone()],
+                        funcs: vec![],
+                        labels: vec![],
+                        span: None,
+                    });
+                }
+                i => new_insns.push(i.clone()),
+            }
+        }
+        block.instrs = new_insns;
+    }
+    new_cfg
 }
