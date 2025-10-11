@@ -69,6 +69,7 @@ struct Ssaifier<'a> {
     phis: HashMap<usize, HashMap<&'a str, PhiNode>>,
     types: HashMap<String, Type>,
     func: Function,
+    old_arg_name: HashMap<String, String>,
 }
 
 impl<'a> Ssaifier<'a> {
@@ -108,6 +109,7 @@ impl<'a> Ssaifier<'a> {
             phis: HashMap::new(),
             types,
             func: func.clone(),
+            old_arg_name: HashMap::new(),
         }
     }
 
@@ -155,7 +157,6 @@ impl<'a> Ssaifier<'a> {
         phis: &mut HashMap<usize, HashMap<&'a str, PhiNode>>,
         block_start: usize,
         names: &mut NameMaker,
-        func: &mut Function,
     ) {
         // Replace args
         match insn {
@@ -200,8 +201,17 @@ impl<'a> Ssaifier<'a> {
         }
     }
 
-    fn rename_block(&mut self, block_start: usize, names: &mut NameMaker) {
+    fn rename_block(
+        &mut self,
+        block_start: usize,
+        names: &mut NameMaker,
+        vis: &mut HashSet<usize>,
+    ) {
         eprintln!("renaming: {}", block_start);
+        if vis.contains(&block_start) {
+            return;
+        }
+        vis.insert(block_start);
         let block = self.cfg.block_mut(block_start);
         let old_stack = names.stack.clone();
         if block_start == 0 {
@@ -212,20 +222,15 @@ impl<'a> Ssaifier<'a> {
                     let name = names.name(&arg.name);
                     self.types.insert(name.clone(), arg.ty);
                     eprintln!("here replacing args");
+                    self.old_arg_name.insert(name.clone(), arg.name.clone());
                     arg.name = name;
                 }
             }
         }
         for insn in &mut block.instrs {
-            Self::replace_names(
-                &mut self.types,
-                insn,
-                &mut self.phis,
-                block_start,
-                names,
-                &mut self.func,
-            );
+            Self::replace_names(&mut self.types, insn, &mut self.phis, block_start, names);
         }
+
         for succ in &block.flows_to {
             if let Some(phis) = self.phis.get_mut(succ) {
                 for (var, phi) in phis {
@@ -236,15 +241,52 @@ impl<'a> Ssaifier<'a> {
         for &domed in &self.doms.im_dom[&block_start].clone() {
             if domed != block_start && self.cfg.block(block_start).flows_to.contains(&domed) {
                 eprintln!("dominating {}", domed);
-                self.rename_block(domed, names);
+                self.rename_block(domed, names, vis);
             }
+        }
+        for &succ in &self.cfg.block(block_start).flows_to.clone() {
+            self.rename_block(succ, names, vis)
         }
         eprintln!("resetting stack");
         names.stack = old_stack;
     }
 
     fn rename(&mut self) {
-        self.rename_block(0, &mut NameMaker::new());
+        let mut name_marker = NameMaker::new();
+        let mut vis: HashSet<usize> = HashSet::new();
+        for block in &self.cfg.blocks.clone() {
+            if !vis.contains(&block.start) {
+                eprintln!("stating new with name_marker: {name_marker:?}");
+                self.rename_block(block.start, &mut name_marker, &mut vis);
+            }
+        }
+        let entry_block = self.cfg.block_mut(0);
+        if let Some(phis) = self.phis.get_mut(&0) {
+            for (var, phi) in phis {
+                let name = if let Some(name) = self
+                    .func
+                    .args
+                    .iter()
+                    .find(|a| &self.old_arg_name[&a.name] == var)
+                {
+                    name.name.clone()
+                } else {
+                    name_marker.push(var);
+                    name_marker.name(var)
+                };
+                entry_block.instrs.insert(
+                    0,
+                    Instruction::Effect {
+                        op: EffectOp::Set,
+                        args: vec![phi.dest.clone(), name.clone()],
+                        funcs: vec![],
+                        labels: vec![],
+                        span: None,
+                    },
+                );
+                phi.args.insert(0, name);
+            }
+        }
     }
 
     fn add_sets(&mut self) {
@@ -277,7 +319,16 @@ impl<'a> Ssaifier<'a> {
         }
     }
 
-    fn add_undef_to_block(&mut self, mut cur_defs: HashSet<String>, block_start: usize) {
+    fn add_undef_to_block(
+        &mut self,
+        mut cur_defs: HashSet<String>,
+        block_start: usize,
+        vis: &mut HashSet<usize>,
+    ) {
+        if vis.contains(&block_start) {
+            return;
+        }
+        vis.insert(block_start);
         let block = self.cfg.block_mut(block_start);
         let mut num_inserted = 0;
         for (idx, insn) in block.instrs.clone().into_iter().enumerate() {
@@ -332,15 +383,17 @@ impl<'a> Ssaifier<'a> {
                 }
             }
         }
-        for &domed in &self.doms.im_dom[&block_start].clone() {
-            if domed != block_start && self.cfg.block(block_start).flows_to.contains(&domed) {
-                self.add_undef_to_block(cur_defs.clone(), domed);
-            }
+        for &domed in &block.flows_to.clone() {
+            self.add_undef_to_block(cur_defs.clone(), domed, vis);
         }
     }
 
     fn add_undefs(&mut self) {
-        self.add_undef_to_block(self.func.args.iter().map(|a| a.name.clone()).collect(), 0);
+        self.add_undef_to_block(
+            self.func.args.iter().map(|a| a.name.clone()).collect(),
+            0,
+            &mut HashSet::new(),
+        );
     }
 
     fn cfg(self) -> (Cfg, Vec<Arg>) {
@@ -352,6 +405,7 @@ pub fn to_ssa(cfg: &Cfg, func: &Function) -> (Cfg, Vec<Arg>) {
     let mut ssaifier = Ssaifier::from_cfg_and_func(cfg, func);
     ssaifier.compute_phis();
     ssaifier.rename();
+    eprintln!("self: {ssaifier:#?}");
     ssaifier.add_sets();
     ssaifier.add_undefs();
     ssaifier.cfg()

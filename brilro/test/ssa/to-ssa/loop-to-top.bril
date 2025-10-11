@@ -1,0 +1,6 @@
+@main {
+.top:
+  x: int = const 1;
+.mid:
+  jmp .top;
+}
