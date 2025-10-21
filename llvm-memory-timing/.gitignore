@@ -1,0 +1,5 @@
+inc.txt
+rand.txt
+*.o
+build/
+a.out
