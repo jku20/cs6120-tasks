@@ -20,14 +20,17 @@ struct InstrumentPass : public PassInfoMixin<InstrumentPass> {
       for (auto &B : F) {
         for (auto &I : B) {
           if (auto *op = dyn_cast<CallBase>(&I)) {
-            StringRef name = op->getCalledFunction()->getName();
-            if (name == "llvm.var.annotation.p0.p0") {
-              auto S =
-                  cast<ConstantDataArray>(
-                      cast<GlobalVariable>(op->getOperand(1))->getOperand(0))
-                      ->getAsCString();
-              if (S == "time") {
-                look_for_access = true;
+            auto Func = op->getCalledFunction();
+            if (Func) {
+              auto name = Func->getName();
+              if (name == "llvm.var.annotation.p0.p0") {
+                auto S =
+                    cast<ConstantDataArray>(
+                        cast<GlobalVariable>(op->getOperand(1))->getOperand(0))
+                        ->getAsCString();
+                if (S == "time") {
+                  look_for_access = true;
+                }
               }
             }
           }
