@@ -25,20 +25,19 @@ struct LICMPass : public PassInfoMixin<LICMPass> {
       if (!L->isLoopSimplifyForm())
         continue;
 
-      SmallVector<Instruction *> Invarient;
+      SmallVector<Instruction *> Invariant;
       for (auto B : L->getBlocks()) {
         for (auto &I : *B) {
           auto S = SE.getSCEV(&I);
           if (SE.isLoopInvariant(S, L)) {
-            Invarient.push_back(&I);
+            Invariant.push_back(&I);
           }
         }
       }
 
       auto H = L->getHeader();
       auto PH = H->getPrevNode();
-      for (auto I : Invarient) {
-        errs() << *I << "\n";
+      for (auto I : Invariant) {
         I->moveBefore(PH->getFirstInsertionPt());
       }
     }
