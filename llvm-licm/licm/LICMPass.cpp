@@ -2,6 +2,8 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Transforms/Scalar/LoopRotation.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
+#include <iterator>
 
 using namespace llvm;
 
@@ -19,7 +21,9 @@ struct LICMPass : public PassInfoMixin<LICMPass> {
     CanonicalizeLoops.run(F, AM);
     auto &LI = AM.getResult<LoopAnalysis>(F);
     auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
-    for (auto &L : LI) {
+    auto Loops = LI.getLoopsInPreorder();
+    for (auto i = Loops.rbegin(), End = Loops.rend(); i != End; i++) {
+      auto L = *i;
       // Loop simplify pass can fail when entered by indirectbr due to
       // critical edges not being able to be split.
       if (!L->isLoopSimplifyForm())
@@ -28,7 +32,19 @@ struct LICMPass : public PassInfoMixin<LICMPass> {
       SmallVector<Instruction *> Invariant;
       for (auto B : L->getBlocks()) {
         for (auto &I : *B) {
+          bool innermost = true;
+          for (auto Inner : L->getLoopsInPreorder()) {
+            if (Inner == L)
+              continue;
+            if (Inner->contains(&I)) {
+              innermost = false;
+              break;
+            }
+          }
+          if (!innermost)
+            continue;
           auto S = SE.getSCEV(&I);
+          // Check that this is the innermost loop containing the variable.
           if (SE.isLoopInvariant(S, L)) {
             Invariant.push_back(&I);
           }
@@ -37,8 +53,14 @@ struct LICMPass : public PassInfoMixin<LICMPass> {
 
       auto H = L->getHeader();
       auto PH = H->getPrevNode();
+      errs() << "preheader: " << *PH << "\n";
       for (auto I : Invariant) {
-        I->moveBefore(PH->getFirstInsertionPt());
+        if (auto P = dyn_cast<PHINode>(I)) {
+          // Pass, this is annoying to do
+        } else {
+          errs() << "inserting: " << *I << "\n";
+          I->moveBefore(PH->getTerminator()->getIterator());
+        }
       }
     }
 
@@ -56,6 +78,7 @@ llvmGetPassPluginInfo() {
             PB.registerOptimizerEarlyEPCallback([](ModulePassManager &MPM,
                                                    OptimizationLevel,
                                                    ThinOrFullLTOPhase) {
+              MPM.addPass(createModuleToFunctionPassAdaptor(PromotePass()));
               MPM.addPass(createModuleToFunctionPassAdaptor(LICMPass()));
             });
             PB.registerPipelineParsingCallback(

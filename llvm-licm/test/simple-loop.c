@@ -1,4 +1,4 @@
-// RUN: clang -O0 -emit-llvm -Xclang -disable-O0-optnone -S simple-loop.c && opt -S -passes="mem2reg" < simple-loop.ll | opt -S -passes="my-licm" -load-pass-plugin=../build/licm/LICMPass.so | FileCheck %s
+// RUN: clang -O0 -emit-llvm -Xclang -disable-O0-optnone -S %s -o - | opt -S -passes="mem2reg" | opt -S -passes="my-licm" -load-pass-plugin=../build/licm/LICMPass.so | FileCheck %s
 // CHECK: .lr.ph:                                           ; preds = %0
 // CHECK: add nsw i32 1, 2
 // CHECK: br
