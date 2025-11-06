@@ -1,2 +1,0 @@
-1.366520e-02 test/loop.ll
-3.577614e-02 test/simple-loop.c
