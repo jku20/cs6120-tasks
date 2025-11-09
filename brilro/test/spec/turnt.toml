@@ -1,0 +1,3 @@
+[envs.spec]
+command = "bril2json < {filename} | brili -t {args} 2> /tmp/trunt-bril-trace.csv && bril2json < {filename} | cargo run -- -m spec -t /tmp/trunt-bril-trace.csv | bril2txt && rm /tmp/trunt-bril-trace.csv"
+output.spec = "-"
