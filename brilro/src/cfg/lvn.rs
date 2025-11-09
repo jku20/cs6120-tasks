@@ -80,6 +80,7 @@ pub fn is_terminator(insn: &Instruction) -> bool {
             EffectOp::Jmp => true,
             EffectOp::Br => true,
             EffectOp::Ret => true,
+            EffectOp::Speculate | EffectOp::Commit | EffectOp::Guard => false,
         },
         Instruction::Constant { .. } | Instruction::Value { .. } | Instruction::Label { .. } => {
             false
@@ -160,7 +161,7 @@ impl BasicBlock {
                         Some(_) => {
                             let fresh = format!("__brilro_fresh{fresh_idx}");
                             fresh_idx += 1;
-                            last_dest.insert(dest.clone(), (fresh.clone(), ty.clone()));
+                            last_dest.insert(dest.clone(), (fresh.clone(), *ty));
                             match &mut new_insn {
                                 Instruction::Effect { .. } | Instruction::Label { .. } => {}
                                 Instruction::Constant { dest, .. }

@@ -6,8 +6,10 @@ use brilro::{
         ssa,
     },
     parser::ast::Program,
+    spec::{self, Trace},
 };
 use std::{
+    fs,
     io::{self, Read, Write},
     process::{Command, ExitCode, Stdio},
     str::FromStr,
@@ -26,6 +28,7 @@ enum Mode {
     Dominator,
     ToSsa,
     FromSsa,
+    Spec,
 }
 
 impl FromStr for Mode {
@@ -42,6 +45,7 @@ impl FromStr for Mode {
             "dom" => Ok(Mode::Dominator),
             "to-ssa" => Ok(Mode::ToSsa),
             "from-ssa" => Ok(Mode::FromSsa),
+            "spec" => Ok(Mode::Spec),
             _ => Err("unrecognized mode".to_string()),
         }
     }
@@ -55,13 +59,17 @@ impl FromStr for Mode {
 /// language and do various compiler optimizations.
 struct Request {
     /// select what to do with the program, one of: "cfg", "rotate", "dce", "lvn", "lvn-dce",
-    /// "reading-defs", "to-ssa"
+    /// "reading-defs", "to-ssa", "spec"
     #[argh(option, short = 'm')]
     mode: Mode,
 
     /// print the given function's CFG and do not rotate any programs.
     #[argh(option)]
     cfg_fun: Option<String>,
+
+    /// use the given trace file
+    #[argh(option, short = 't')]
+    trace_file: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -100,6 +108,7 @@ fn main() -> ExitCode {
         Mode::Dominator => run_dom(prog, cfg_fun),
         Mode::ToSsa => run_to_ssa(prog),
         Mode::FromSsa => run_from_ssa(prog),
+        Mode::Spec => run_spec(prog, req.trace_file),
     };
 
     match res {
@@ -136,6 +145,21 @@ where
         cfg.function()
     });
     prog.functions = new_functions.collect();
+}
+
+fn run_spec(mut prog: Program, trace_file: Option<String>) -> Result<ExitCode, String> {
+    let trace_file = trace_file.ok_or("no trace_file given")?;
+    let input = fs::read_to_string(trace_file).map_err(|e| e.to_string())?;
+
+    let traces: Vec<Trace> = input
+        .lines()
+        .map(Trace::parse_from_str)
+        .collect();
+
+    spec::speculate_from_traces(&mut prog, &traces);
+    println!("{}", serde_json::to_string_pretty(&prog).unwrap());
+
+    Ok(ExitCode::SUCCESS)
 }
 
 fn run_to_ssa(mut prog: Program) -> Result<ExitCode, String> {

@@ -52,6 +52,9 @@ pub enum EffectOp {
     Print,
     Nop,
     Set,
+    Speculate,
+    Commit,
+    Guard,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
