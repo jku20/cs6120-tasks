@@ -1,4 +1,3 @@
-509
 @ack(m: int, n: int): int {
   speculate;
   zero: int = const 0;
